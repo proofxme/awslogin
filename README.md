@@ -38,15 +38,6 @@ npx awslogin <profile_name>
 
 - **Node.js**: v14.0.0 or higher
 - **AWS CLI**: v2.x installed and configured
-- **aws-mfa** (optional): Required only if using MFA authentication with long-term credentials
-
-### Installing aws-mfa (Optional)
-
-If you need MFA support:
-
-```bash
-pip install aws-mfa
-```
 
 ## Usage
 
@@ -73,6 +64,18 @@ The tool follows this authentication flow:
 ## Configuration
 
 This tool works with your existing AWS CLI configuration files. No additional configuration is required.
+
+### MFA Authentication
+
+The tool uses AWS CLI's native `sts get-session-token` command for MFA authentication. When using a profile with MFA configured:
+
+1. The tool detects the MFA device ARN from the long-term profile
+2. Prompts for the MFA token
+3. Gets temporary session credentials using AWS STS
+4. Stores the temporary credentials in the specified profile
+5. Verifies the authentication was successful
+
+No additional packages are required for MFA support.
 
 ### AWS Configuration
 
@@ -154,8 +157,8 @@ $ awslogin mycompany-dev
 ```bash
 $ awslogin production
 🔑 Attempting direct authentication for profile: production
-🔐 Authenticating with AWS MFA for profile: production
-Enter MFA code: 123456
+🔐 Attempting MFA authentication for profile: production
+Enter MFA token: 123456
 ✅ Successfully authenticated with MFA for profile: production
 {
     "UserId": "AROAXXXXXXXXXXXXXXXX:username",
@@ -219,13 +222,14 @@ $ awslogin simple-profile
 #### MFA authentication fails
 
 ```
-❌ Failed to authenticate with MFA using aws-mfa for profile: example-profile
+⚠️  MFA authentication failed
 ```
 
 **Solution**:
-1. Verify `aws-mfa` is installed correctly
-2. Ensure your long-term profile exists and has correct credentials
-3. Verify your MFA device ARN is correctly configured
+1. Ensure your long-term profile exists and has correct credentials
+2. Verify your MFA device ARN is correctly configured (check aws_mfa_device or mfa_serial in AWS config)
+3. Make sure you're entering the correct MFA token
+4. Check if your IAM user has permission to use STS services
 
 #### Direct authentication fails
 

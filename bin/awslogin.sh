@@ -57,7 +57,30 @@ else
 
         if [ -n "$mfa_serial" ]; then
             echo "🔐 Attempting MFA authentication for profile: $profile"
-            if aws-mfa --duration 28800 --profile "$profile"; then
+            # Prompt for MFA token
+            echo -n "Enter MFA token: "
+            read -r token_code
+
+            # Get temporary credentials using the long-term profile
+            creds_json=$(aws sts get-session-token \
+                --profile "$long_term_profile" \
+                --serial-number "$mfa_serial" \
+                --token-code "$token_code" \
+                --duration-seconds 28800 \
+                --output json 2>/dev/null)
+
+            if [ $? -eq 0 ]; then
+                # Extract credentials from JSON response
+                access_key=$(echo "$creds_json" | grep -o '"AccessKeyId": "[^"]*' | cut -d'"' -f4)
+                secret_key=$(echo "$creds_json" | grep -o '"SecretAccessKey": "[^"]*' | cut -d'"' -f4)
+                session_token=$(echo "$creds_json" | grep -o '"SessionToken": "[^"]*' | cut -d'"' -f4)
+
+                # Store temporary credentials in the profile
+                aws configure set aws_access_key_id "$access_key" --profile "$profile"
+                aws configure set aws_secret_access_key "$secret_key" --profile "$profile"
+                aws configure set aws_session_token "$session_token" --profile "$profile"
+
+                # Verify the credentials work
                 if aws sts get-caller-identity --profile "$profile" &> /dev/null; then
                     echo "✅ Successfully authenticated with MFA for profile: $profile"
                     aws sts get-caller-identity --profile "$profile"
