@@ -1,14 +1,12 @@
 {
   "name": "aws-profile-auth-cli",
   "version": "1.0.0",
-  "description": "Smart AWS profile authentication CLI tool with native support for SSO, MFA, and direct authentication",
+  "description": "Smart AWS profile authentication CLI tool with native support for Browser-based SSO, Legacy SSO, MFA, and direct authentication",
   "main": "bin/cli.js",
   "bin": {
     "awslogin": "./bin/cli.js"
   },
-  "scripts": {
-    "postinstall": "chmod +x ./bin/awslogin.sh ./bin/cli.js"
-  },
+  "scripts": {},
   "keywords": [
     "aws",
     "cli",

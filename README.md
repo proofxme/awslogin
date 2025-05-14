@@ -10,6 +10,7 @@ A smart CLI tool that streamlines authentication with AWS profiles, supporting m
   - MFA (Multi-Factor Authentication) with long-term credentials
   - Direct credential usage
 - **Smart Fallback Mechanism**: Falls back to simpler authentication methods when possible
+- **Token Expiration Checking**: Only requests re-authentication when tokens have expired or are about to expire
 - **User-Friendly Messages**: Clear, emoji-enhanced status messages
 
 ## Installation
@@ -57,8 +58,11 @@ The tool follows this authentication flow:
 
 1. **Check if profile exists** in AWS config
 2. **Determine authentication type**:
-   - If profile has SSO configured: Use SSO authentication
+   - If profile has SSO configured (either direct or via sso_session): Use SSO authentication
    - If not SSO: Try direct authentication first
+     - If credentials exist and are valid, check token expiration time
+     - If tokens are still valid, use existing credentials without re-authentication
+     - If tokens are expired or will expire soon (within 15 minutes), request new tokens
    - If direct authentication fails: Try MFA if a long-term profile exists
 
 ## Configuration
@@ -90,7 +94,20 @@ The tool supports three types of AWS profiles:
 
 #### 1. SSO Profiles
 
-Example configuration in `~/.aws/config`:
+The tool supports two types of SSO configurations:
+
+**A. Direct SSO Configuration (Legacy):**
+
+```ini
+[profile mycompany]
+sso_start_url = https://mycompany.awsapps.com/start/
+sso_account_id = 123456789012
+sso_role_name = AdministratorAccess
+region = us-west-2
+output = json
+```
+
+**B. Browser-based SSO with `sso_session` Reference (Recommended):**
 
 ```ini
 [profile mycompany]
@@ -141,6 +158,8 @@ output = json
 
 ### Example 1: SSO Authentication
 
+#### Direct SSO Authentication:
+
 ```bash
 $ awslogin mycompany-dev
 🔐 Authenticating with AWS SSO for profile: mycompany-dev
@@ -149,6 +168,20 @@ $ awslogin mycompany-dev
     "UserId": "AROAXXXXXXXXXXXXXXXX:username",
     "Account": "123456789012",
     "Arn": "arn:aws:sts::123456789012:assumed-role/AdministratorAccess/username"
+}
+```
+
+#### Browser-based SSO Authentication:
+
+```bash
+$ awslogin dcycle
+🔐 Authenticating with AWS SSO for profile: dcycle
+🌐 Using browser-based SSO authentication with session: dcycle
+✅ Successfully authenticated with AWS SSO for profile: dcycle
+{
+    "UserId": "AROAXXXXXXXXXXXXXXXX:username",
+    "Account": "587922392833",
+    "Arn": "arn:aws:sts::587922392833:assumed-role/AdministratorAccess/username"
 }
 ```
 
@@ -177,6 +210,44 @@ $ awslogin simple-profile
     "UserId": "AIDAXXXXXXXXXXXXXXXXX",
     "Account": "123456789012",
     "Arn": "arn:aws:iam::123456789012:user/apiuser"
+}
+```
+
+### Example 4: Token Expiration Handling
+
+```bash
+# First authentication (stores token expiration time)
+$ awslogin dev-profile
+🔐 Attempting MFA authentication for profile: dev-profile
+Enter MFA token: 123456
+✅ Successfully authenticated with MFA for profile: dev-profile
+{
+    "UserId": "AROAXXXXXXXXXXXXXXXX:username",
+    "Account": "123456789012",
+    "Arn": "arn:aws:sts::123456789012:assumed-role/PowerUserAccess/username"
+}
+
+# Later, running the command again with valid tokens
+$ awslogin dev-profile
+🔑 Attempting direct authentication for profile: dev-profile
+✅ Successfully authenticated using profile: dev-profile (valid until 2023-04-25 18:30:45)
+{
+    "UserId": "AROAXXXXXXXXXXXXXXXX:username",
+    "Account": "123456789012",
+    "Arn": "arn:aws:sts::123456789012:assumed-role/PowerUserAccess/username"
+}
+
+# When tokens are expiring soon
+$ awslogin dev-profile
+🔑 Attempting direct authentication for profile: dev-profile
+⚠️ Credentials for profile dev-profile have expired or will expire soon. Refreshing...
+🔐 Attempting MFA authentication for profile: dev-profile
+Enter MFA token: 654321
+✅ Successfully authenticated with MFA for profile: dev-profile
+{
+    "UserId": "AROAXXXXXXXXXXXXXXXX:username",
+    "Account": "123456789012",
+    "Arn": "arn:aws:sts::123456789012:assumed-role/PowerUserAccess/username"
 }
 ```
 
