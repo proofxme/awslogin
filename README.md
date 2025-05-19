@@ -6,9 +6,12 @@ A smart CLI tool that streamlines authentication with AWS profiles, supporting m
 
 - **Intelligent Authentication Flow**: Automatically detects and uses the appropriate authentication method for each profile
 - **Supports Multiple Authentication Methods**:
-  - AWS SSO (Single Sign-On)
+  - AWS SSO (Single Sign-On) with account selection
   - MFA (Multi-Factor Authentication) with long-term credentials
   - Direct credential usage
+- **Account Selection for SSO**: Choose specific accounts and roles when using SSO profiles with access to multiple accounts
+- **Smart Credential Caching**: Caches selected account credentials in sub-profiles for efficient re-use
+- **Session Validation**: Validates existing AWS sessions before attempting re-authentication to avoid unnecessary login prompts  
 - **Smart Fallback Mechanism**: Falls back to simpler authentication methods when possible
 - **Token Expiration Checking**: Only requests re-authentication when tokens have expired or are about to expire
 - **User-Friendly Messages**: Clear, emoji-enhanced status messages
@@ -43,13 +46,24 @@ npx awslogin <profile_name>
 ## Usage
 
 ```bash
-awslogin <profile_name>
+awslogin <profile_name> [options]
 ```
 
-For example:
+Options:
+- `--select`: Prompt for account selection after SSO authentication (for SSO profiles with multiple accounts)
+- `--token <mfa_token>`: Provide MFA token directly without prompting
+
+Examples:
 
 ```bash
+# Simple authentication
 awslogin mycompany-dev
+
+# SSO with account selection
+awslogin dcycle --select
+
+# MFA with token provided
+awslogin myprofile --token 123456
 ```
 
 ## Authentication Flow
@@ -58,11 +72,15 @@ The tool follows this authentication flow:
 
 1. **Check if profile exists** in AWS config
 2. **Determine authentication type**:
-   - If profile has SSO configured (either direct or via sso_session): Use SSO authentication
+   - If profile has SSO configured (either direct or via sso_session):
+     - First validates the existing session with a lightweight AWS API call (S3 head-bucket)
+     - If session is still valid, uses existing credentials without re-authentication
+     - If session is invalid, proceeds with SSO authentication
    - If not SSO: Try direct authentication first
-     - If credentials exist and are valid, check token expiration time
-     - If tokens are still valid, use existing credentials without re-authentication
-     - If tokens are expired or will expire soon (within 15 minutes), request new tokens
+     - First validates the existing session with a lightweight AWS API call
+     - If session is valid, checks token expiration time
+     - If tokens are still valid, uses existing credentials without re-authentication
+     - If tokens are expired or will expire soon (within 15 minutes), requests new tokens
    - If direct authentication fails: Try MFA if a long-term profile exists
 
 ## Configuration
@@ -152,6 +170,83 @@ aws_access_key_id = AKIAXXXXXXXXXXXXXXXX
 aws_secret_access_key = XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 region = us-west-2
 output = json
+```
+
+### Account Selection for SSO Profiles
+
+When working with AWS SSO profiles that have access to multiple accounts, you can use the `--select` flag to choose which account and role to use:
+
+```bash
+awslogin dcycle --select
+```
+
+This will:
+1. Authenticate with AWS SSO
+2. List all available accounts
+3. Prompt you to select an account
+4. List all available roles for that account
+5. Prompt you to select a role
+6. Create a sub-profile with the format `<profile>-<account-name>`
+7. Store the temporary credentials in the sub-profile
+
+The sub-profiles are cached, so subsequent runs will check for valid credentials first:
+- If valid credentials exist in a sub-profile, they will be used automatically
+- If credentials are expired, you'll be prompted to re-authenticate
+
+Example workflow:
+
+```bash
+$ awslogin dcycle --select
+🔐 Authenticating with AWS SSO for profile: dcycle
+🌐 Using browser-based SSO authentication with session: dcycle
+...
+🔍 Retrieving available SSO accounts...
+
+📋 Available AWS accounts:
+   1. Development (123456789012)
+   2. Staging (234567890123)
+   3. Production (345678901234)
+
+Select an account (enter number): 1
+
+✅ Selected account: Development (123456789012)
+🔍 Retrieving available roles for account 123456789012...
+
+📋 Available roles:
+   1. AdministratorAccess
+   2. PowerUserAccess
+   3. ReadOnlyAccess
+
+Select a role (enter number): 1
+✅ Selected role: AdministratorAccess
+
+🔄 Creating sub-profile: dcycle-development
+✅ Successfully created sub-profile: dcycle-development
+
+💡 You can now use the sub-profile with: aws --profile dcycle-development <command>
+{
+    "UserId": "AROAXXXXXXXXXXXXXXXX:username",
+    "Account": "123456789012",
+    "Arn": "arn:aws:sts::123456789012:assumed-role/AdministratorAccess/username"
+}
+```
+
+On subsequent runs, if the credentials are still valid:
+
+```bash
+$ awslogin dcycle --select
+🔍 Found existing sub-profiles for dcycle:
+   1. dcycle-development - Account: 123456789012, Role: AdministratorAccess
+   2. dcycle-staging - Account: 234567890123, Role: PowerUserAccess
+
+✅ Found valid credentials in sub-profile: dcycle-development
+💡 Using existing credentials (use awslogin dcycle --select to refresh)
+
+{
+    "UserId": "AROAXXXXXXXXXXXXXXXX:username",
+    "Account": "123456789012",
+    "Arn": "arn:aws:sts::123456789012:assumed-role/AdministratorAccess/username"
+}
 ```
 
 ## Examples
