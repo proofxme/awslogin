@@ -30,10 +30,8 @@ class MainWizard extends BaseWizard {
     switch (action) {
       case 'authenticate':
         return this.runAuthWizard();
-      case 'setup':
-        return this.runSetupWizard();
-      case 'manage':
-        return this.runManageWizard();
+      case 'configure':
+        return this.runConfigureMenu();
       case 'help':
         return this.showInteractiveHelp();
       case 'exit':
@@ -45,29 +43,23 @@ class MainWizard extends BaseWizard {
   async selectMainAction() {
     const choices = [
       {
-        title: '🔐 Authenticate to AWS',
+        title: '🚀 Quick Login',
         value: 'authenticate',
-        description: 'Login to an existing AWS profile'
+        description: 'Login to AWS with an existing profile'
       },
       {
-        title: '⚙️  Setup new profile',
-        value: 'setup',
-        description: 'Configure a new AWS profile'
+        title: '⚙️  Configure',
+        value: 'configure',
+        description: 'Setup or manage AWS profiles'
       },
       {
-        title: '📋 Manage profiles',
-        value: 'manage',
-        description: 'Edit, delete, or view existing profiles'
-      },
-      {
-        title: '❓ Interactive help',
+        title: '❓ Help',
         value: 'help',
-        description: 'Learn how to use AWS Login'
+        description: 'Get help and documentation'
       },
       {
         title: '🚪 Exit',
-        value: 'exit',
-        description: 'Exit the wizard'
+        value: 'exit'
       }
     ];
 
@@ -79,48 +71,70 @@ class MainWizard extends BaseWizard {
     return authWizard.run();
   }
 
-  async runSetupWizard() {
-    const setupWizard = new SetupWizard();
-    return setupWizard.run();
-  }
+  async runConfigureMenu() {
+    const action = await this.select('Configuration Options:', [
+      {
+        title: '➕ Add new profile',
+        value: 'add',
+        description: 'Setup a new AWS profile (SSO, MFA, or Direct)'
+      },
+      {
+        title: '✏️  Edit profile',
+        value: 'edit',
+        description: 'Modify an existing profile'
+      },
+      {
+        title: '🗑️  Remove profile',
+        value: 'delete',
+        description: 'Delete a profile'
+      },
+      {
+        title: '📋 List profiles',
+        value: 'list',
+        description: 'View all configured profiles'
+      },
+      {
+        title: '🔙 Back',
+        value: 'back'
+      }
+    ]);
 
-  async runManageWizard() {
-    const manageWizard = new ManageWizard();
-    return manageWizard.run();
+    switch (action) {
+      case 'add':
+        const setupWizard = new SetupWizard();
+        return setupWizard.run();
+      case 'edit':
+      case 'delete':
+      case 'list':
+        const manageWizard = new ManageWizard();
+        return manageWizard.runAction(action);
+      case 'back':
+        return this.run();
+    }
   }
 
   async showInteractiveHelp() {
     this.clear();
     this.showBanner('❓ Interactive Help');
 
-    const topic = await this.select('What do you need help with?', [
+    const topic = await this.select('Help Topics:', [
       {
-        title: '🏢 AWS SSO / Identity Center',
-        value: 'sso',
-        description: 'Learn about SSO authentication'
+        title: '🚀 Quick Start',
+        value: 'quickstart',
+        description: 'Get started with awslogin'
       },
       {
-        title: '📱 Multi-Factor Authentication (MFA)',
-        value: 'mfa',
-        description: 'Understanding MFA setup and usage'
+        title: '🔐 Authentication Types',
+        value: 'auth',
+        description: 'SSO, MFA, and Direct authentication explained'
       },
       {
-        title: '🔑 AWS Credentials',
-        value: 'credentials',
-        description: 'How AWS credentials work'
+        title: '💡 Common Tasks',
+        value: 'common',
+        description: 'Frequently used commands and workflows'
       },
       {
-        title: '👥 Sub-profiles',
-        value: 'subprofiles',
-        description: 'Using sub-profiles for multiple accounts'
-      },
-      {
-        title: '🔐 1Password Integration',
-        value: '1password',
-        description: 'Setting up 1Password for MFA'
-      },
-      {
-        title: '🔙 Back to main menu',
+        title: '🔙 Back',
         value: 'back'
       }
     ]);
@@ -141,122 +155,85 @@ class MainWizard extends BaseWizard {
 
   async showHelpTopic(topic) {
     const helpContent = {
-      'sso': `
-AWS SSO / Identity Center Authentication
-========================================
+      'quickstart': `
+🚀 Quick Start Guide
+==================
 
-AWS SSO (now called IAM Identity Center) provides centralized access to multiple
-AWS accounts through a single sign-on portal.
+Getting started with awslogin is easy! Follow these steps:
 
-Key Benefits:
-• Single login for multiple AWS accounts
-• No long-term credentials stored locally
-• Automatic credential rotation
-• Role-based access control
+1. FIRST TIME SETUP
+   Run: awslogin
+   - The wizard will guide you through creating your first profile
+   - Choose your authentication type (SSO, MFA, or Direct)
 
-Setup Requirements:
-1. Your organization's SSO start URL (e.g., https://company.awsapps.com/start)
-2. The AWS region where SSO is configured
-3. The role name you want to assume (e.g., AdministratorAccess)
+2. DAILY USE
+   Run: awslogin <profile-name>
+   - Automatically logs you in to AWS
+   - Handles credential refresh seamlessly
 
-The wizard will guide you through setting this up automatically!
+3. COMMON COMMANDS
+   • awslogin                     - Interactive wizard
+   • awslogin <profile>           - Quick login
+   • awslogin <profile> --select  - Choose from multiple accounts
+   • awslogin --list              - Show all profiles
+
+That's it! You're ready to use awslogin.
 `,
-      'mfa': `
-Multi-Factor Authentication (MFA)
-==================================
+      'auth': `
+🔐 Authentication Types
+======================
 
-MFA adds an extra layer of security by requiring a second form of authentication
-beyond your password.
+awslogin supports three authentication methods:
 
-How it works:
-1. You have long-term AWS credentials (access key and secret key)
-2. An MFA device is configured (virtual or hardware)
-3. When authenticating, you provide a 6-digit token from your MFA device
-4. AWS issues temporary session credentials
+1. SSO (AWS Identity Center) - RECOMMENDED
+   • Single sign-on for multiple AWS accounts
+   • No credentials stored locally
+   • Automatic token refresh
+   • Setup: Requires SSO portal URL and region
 
-Supported MFA Methods:
-• Virtual MFA apps (Google Authenticator, Authy, etc.)
-• Hardware MFA devices
-• 1Password integration (automatic token retrieval)
+2. MFA (Multi-Factor Authentication)
+   • Adds security with 6-digit tokens
+   • Works with virtual MFA apps
+   • Optional 1Password integration
+   • Setup: Requires access keys and MFA device
 
-The setup wizard will help you configure MFA step by step.
+3. Direct Credentials
+   • Simple access key authentication
+   • Best for programmatic access
+   • No session management needed
+   • Setup: Requires access key ID and secret
+
+Choose based on your organization's setup and security requirements.
 `,
-      'credentials': `
-AWS Credentials Overview
-========================
-
-AWS uses several types of credentials:
-
-1. Long-term Credentials:
-   • AWS Access Key ID and Secret Access Key
-   • Never expire (must be rotated manually)
-   • Should be protected and rarely used directly
-
-2. Temporary Session Credentials:
-   • Include a session token
-   • Expire after a set duration (1-12 hours typically)
-   • More secure for daily use
-
-3. SSO Credentials:
-   • Automatically managed by AWS SSO
-   • Refreshed as needed
-   • No manual rotation required
-
-Best Practices:
-• Use temporary credentials whenever possible
-• Enable MFA for sensitive operations
-• Rotate long-term credentials regularly
-• Never commit credentials to version control
-`,
-      'subprofiles': `
-Sub-profiles for Multiple Accounts
-===================================
-
-Sub-profiles allow you to access multiple AWS accounts without repeated logins.
-
-How they work:
-1. You authenticate to a main profile (e.g., 'company')
-2. AWS Login creates sub-profiles for each account (e.g., 'company-dev', 'company-prod')
-3. Sub-profiles reuse the main profile's SSO session
-4. Switch between accounts instantly without re-authenticating
-
-Benefits:
-• Single sign-on to multiple accounts
-• Automatic session sharing
-• Clear naming convention
-• Easy account switching
-
-Example:
-  Main profile: 'company'
-  Sub-profiles: 'company-dev', 'company-staging', 'company-prod'
-
-Use 'awslogin company --select' to choose an account interactively.
-`,
-      '1password': `
-1Password Integration
+      'common': `
+💡 Common Tasks & Tips
 =====================
 
-AWS Login can automatically retrieve MFA tokens from 1Password.
+PROFILE MANAGEMENT
+• Add profile:     awslogin (then choose Configure)
+• List profiles:   awslogin --list
+• Edit profile:    awslogin <profile> --configure
+• Delete profile:  Use the Configure menu
 
-Setup Steps:
-1. Install 1Password CLI ('op' command)
-2. Sign in to 1Password CLI
-3. Store your AWS MFA secret in 1Password
-4. Run 'awslogin <profile> --configure' to link them
+AUTHENTICATION
+• Quick login:     awslogin <profile>
+• Force refresh:   awslogin <profile> --force
+• With MFA token:  awslogin <profile> --token 123456
 
-Benefits:
-• No manual token entry
-• Secure storage of MFA secrets
-• Seamless authentication flow
-• Works with multiple profiles
+MULTIPLE ACCOUNTS
+• Select account:  awslogin <profile> --select
+• Sub-profiles:    Create once, use parent's SSO session
 
-Requirements:
-• 1Password subscription
-• 1Password CLI installed
-• MFA secret stored as TOTP in 1Password
+TROUBLESHOOTING
+• Session expired? Just run awslogin <profile> again
+• MFA not working? Check your device time sync
+• SSO issues? Verify your portal URL is correct
 
-The configuration wizard will detect 1Password and help you set this up.
-`
+PRO TIPS
+• Use tab completion for profile names
+• Set AWS_PROFILE environment variable for persistent selection
+• Combine with aws CLI: awslogin prod && aws s3 ls
+`,
     };
 
     console.log(helpContent[topic] || 'Help topic not found.');

@@ -5,12 +5,15 @@
 
 **The smart way to authenticate with AWS profiles** - featuring an interactive wizard that guides you through setup and authentication with zero complexity.
 
-## ✨ What's New in v3.0
+## ✨ What's New in v3.0.4
 
-- **🎯 Interactive Wizard Mode** - Just run `awslogin` with no arguments
+- **⚡ 100x Faster Performance** - Profile listing now instant with intelligent caching
+- **🆕 Automated User Creation** - Create IAM users with MFA setup in one flow
+- **🎯 Enhanced Interactive Wizard** - All wizard options now fully functional
+- **🔐 Complete 1Password Integration** - Automatic TOTP setup and MFA enablement
 - **🚀 Smart Authentication** - Auto-detects SSO, MFA, or direct credentials
+- **👥 Sub-Profile Creation** - Easy multi-account setup with parent SSO sessions
 - **📋 Profile Templates** - Quick setup with pre-configured templates
-- **🔐 1Password Integration** - Seamless MFA token retrieval
 - **🌍 Auto-Discovery** - Automatically finds your AWS settings
 
 ## 🎬 Quick Start
@@ -58,10 +61,12 @@ Full support for AWS IAM Identity Center (formerly AWS SSO) with:
 
 ### 📱 Multi-Factor Authentication
 Comprehensive MFA support with:
-- Virtual MFA device support
+- **NEW: Automated IAM user creation** with MFA setup
+- Virtual MFA device creation and enablement
 - Hardware token compatibility
-- **1Password integration** for automatic token retrieval
+- **1Password integration** for automatic TOTP storage and retrieval
 - Manual token entry fallback
+- Smart consecutive TOTP code generation for MFA enablement
 
 ### 🎯 Smart Authentication
 The CLI automatically detects your authentication method:
@@ -122,6 +127,43 @@ The management wizard (`awslogin manage`) provides:
 
 ## 🔧 Setup Examples
 
+### 🆕 Automated IAM User Creation with MFA (NEW!)
+
+The wizard can now create a complete IAM user with MFA setup automatically:
+
+```bash
+$ awslogin setup
+
+⚙️ AWS Profile Setup Wizard
+===========================
+
+? Profile name: dev-mfa
+? How do you authenticate? Multi-Factor Authentication (MFA)
+
+MFA Setup Options:
+> 🆕 Create new AWS user with MFA
+  📝 Enter existing credentials
+
+? Select admin profile for user creation: admin-profile
+? New IAM user name: dev-user
+
+✅ Creating IAM user...
+✅ Generated access keys
+✅ Created virtual MFA device
+✅ Store MFA secret in 1Password? Yes
+✅ Created 1Password item: AWS dev-user
+✅ MFA device enabled successfully!
+
+Profile 'dev-mfa' created and ready to use!
+```
+
+Features:
+- Automatic IAM user creation with proper permissions
+- Virtual MFA device creation and enablement
+- 1Password integration for TOTP storage
+- Smart consecutive code generation for MFA enablement
+- Complete end-to-end setup in one flow
+
 ### Setting up SSO Profile
 
 ```bash
@@ -159,9 +201,9 @@ $ awslogin setup
 
 ## 🔐 1Password Integration
 
-### Prerequisites
+### Complete Setup Guide
 
-1. Install 1Password CLI:
+1. **Install 1Password CLI:**
 ```bash
 # macOS
 brew install --cask 1password-cli
@@ -170,18 +212,38 @@ brew install --cask 1password-cli
 # Visit: https://1password.com/downloads/command-line/
 ```
 
-2. Sign in to 1Password:
+2. **Sign in to 1Password:**
 ```bash
-eval $(op signin)
+op signin
+# Follow the prompts to authenticate
 ```
 
-3. Store your MFA secret in 1Password as a one-time password (TOTP)
+3. **Automatic MFA Setup (NEW!):**
+When creating a new IAM user through the wizard, AWS Login will:
+- Create the MFA device automatically
+- Store the TOTP secret in 1Password
+- Enable MFA with automatic code generation
+- Configure the profile with 1Password integration
 
-4. Configure during profile setup or with:
 ```bash
-awslogin setup
-# Choose your profile and enable 1Password integration
+$ awslogin setup
+# Select "Multi-Factor Authentication"
+# Choose "🆕 Create new AWS user with MFA"
+# AWS Login handles everything automatically!
 ```
+
+4. **Manual Setup (existing MFA):**
+For existing MFA setups, during profile configuration:
+- AWS Login detects 1Password CLI
+- Searches for existing AWS TOTP items
+- Links your profile to the 1Password item
+- Enables automatic MFA token retrieval
+
+### How It Works
+- AWS Login uses `op` CLI to retrieve TOTP codes
+- No manual token entry required
+- Automatic consecutive code generation for MFA enablement
+- Seamless authentication with `awslogin <profile>`
 
 ## 🏢 Organization-Wide Setup
 

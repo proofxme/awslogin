@@ -28,26 +28,27 @@ class ManageWizard extends BaseWizard {
     }
 
     const action = await this.selectAction();
+    return this.runAction(action, profileNames);
+  }
+
+  async runAction(action, profileNames) {
+    if (!profileNames) {
+      profileNames = await listProfiles();
+    }
 
     switch (action) {
       case 'list':
         return this.listProfiles(profileNames);
-      case 'details':
-        return this.showProfileDetails(profileNames);
       case 'edit':
         return this.editProfile(profileNames);
       case 'delete':
         return this.deleteProfile(profileNames);
+      case 'details':
+        return this.showProfileDetails(profileNames);
       case 'refresh':
         return this.refreshCredentials(profileNames);
-      case 'clean':
-        return this.cleanExpiredSessions(profileNames);
-      case 'org':
-        return this.setupOrganizationProfiles();
-      case 'subprofile':
-        return this.createSubProfile(profileNames);
-      case 'export':
-        return this.exportProfiles(profileNames);
+      case 'advanced':
+        return this.showAdvancedMenu(profileNames);
       case 'back':
         const MainWizard = require('./main-wizard');
         const mainWizard = new MainWizard();
@@ -58,19 +59,14 @@ class ManageWizard extends BaseWizard {
   async selectAction() {
     const choices = [
       {
-        title: '📝 List all profiles',
+        title: '📝 List profiles',
         value: 'list',
-        description: 'Show all configured profiles'
-      },
-      {
-        title: '📊 Show profile details',
-        value: 'details',
-        description: 'View detailed configuration of a profile'
+        description: 'View all profiles and their status'
       },
       {
         title: '✏️  Edit profile',
         value: 'edit',
-        description: 'Modify profile configuration'
+        description: 'Modify a profile'
       },
       {
         title: '🗑️  Delete profile',
@@ -78,38 +74,17 @@ class ManageWizard extends BaseWizard {
         description: 'Remove a profile'
       },
       {
-        title: '🔄 Refresh credentials',
-        value: 'refresh',
-        description: 'Refresh expired credentials'
+        title: '🔧 Advanced',
+        value: 'advanced',
+        description: 'More options'
       },
       {
-        title: '🧹 Clean expired sessions',
-        value: 'clean',
-        description: 'Remove all expired credentials'
-      },
-      {
-        title: '🏢 Setup organization profiles',
-        value: 'org',
-        description: 'Create profiles for all organization accounts'
-      },
-      {
-        title: '👥 Create sub-profile',
-        value: 'subprofile',
-        description: 'Create a sub-profile from existing SSO profile'
-      },
-      {
-        title: '📤 Export profiles',
-        value: 'export',
-        description: 'Export profile configurations'
-      },
-      {
-        title: '🔙 Back to main menu',
-        value: 'back',
-        description: 'Return to main menu'
+        title: '🔙 Back',
+        value: 'back'
       }
     ];
 
-    return this.select('What would you like to do?', choices);
+    return this.select('Profile Management:', choices);
   }
 
   async listProfiles(profileNames) {
@@ -338,6 +313,59 @@ class ManageWizard extends BaseWizard {
 
     await this.confirm('\nPress Enter to continue...');
     return this.run();
+  }
+
+  async showAdvancedMenu(profileNames) {
+    const action = await this.select('Advanced Options:', [
+      {
+        title: '📊 Profile details',
+        value: 'details',
+        description: 'View detailed configuration'
+      },
+      {
+        title: '🔄 Refresh credentials',
+        value: 'refresh',
+        description: 'Force credential refresh'
+      },
+      {
+        title: '🧹 Clean expired',
+        value: 'clean',
+        description: 'Remove expired sessions'
+      },
+      {
+        title: '👥 Sub-profiles',
+        value: 'subprofile',
+        description: 'Create account-specific profiles'
+      },
+      {
+        title: '📤 Export',
+        value: 'export',
+        description: 'Export configurations'
+      },
+      {
+        title: '🔙 Back',
+        value: 'back'
+      }
+    ]);
+
+    if (action === 'back') {
+      return this.run();
+    }
+
+    switch (action) {
+      case 'details':
+        return this.showProfileDetails(profileNames);
+      case 'refresh':
+        return this.refreshCredentials(profileNames);
+      case 'clean':
+        return this.cleanExpiredSessions(profileNames);
+      case 'subprofile':
+        return this.createSubProfile(profileNames);
+      case 'export':
+        return this.exportProfiles(profileNames);
+      default:
+        return this.run();
+    }
   }
 
   async setupOrganizationProfiles() {

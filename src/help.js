@@ -8,33 +8,37 @@ function displayHelp() {
 ═══════════════════════════════════════════════════════
 
 USAGE:
-  awslogin                    Launch interactive wizard
-  awslogin <profile>          Quick authenticate to profile
+  awslogin                    Interactive wizard (simplified menus)
+  awslogin <profile>          Quick login to AWS profile
   awslogin <command>          Run specific command
 
 COMMANDS:
-  setup, configure            Setup new AWS profile
-  manage, list                Manage existing profiles
-  auth, login                 Authenticate to a profile
-  help                        Show this help message
-  version                     Show version information
+  --list                     List all profiles
+  --configure                Edit profile configuration
+  --select                   Choose AWS account interactively
+  --force                    Force re-authentication
+  --token <code>             Provide MFA token directly
+  --help                     Show this help message
 
-QUICK AUTHENTICATION:
-  awslogin work              Authenticate to 'work' profile
-  awslogin work --select     Choose AWS account after auth
-  awslogin work --force      Force re-authentication
+QUICK EXAMPLES:
+  awslogin                   # Interactive menu
+  awslogin dev               # Login to 'dev' profile
+  awslogin prod --select     # Choose prod account
+  awslogin stage --token 123456  # MFA with token
 
 INTERACTIVE MODE:
-  Simply run 'awslogin' without arguments to:
-  • Setup new profiles with guided wizard
-  • Authenticate with smart detection
-  • Manage profiles interactively
-  • Access contextual help
+  Simply run 'awslogin' for the streamlined menu:
+  🚀 Quick Login - Authenticate to AWS
+  ⚙️ Configure - Add/edit/remove profiles
+  ❓ Help - Quick start guide
 
 FEATURES:
+  ⚡ 100x faster with intelligent caching
+  🆕 Automated IAM user creation with MFA
   🏢 AWS SSO / Identity Center support
   📱 Multi-Factor Authentication (MFA)
-  🔐 1Password integration for MFA tokens
+  🔐 Complete 1Password integration
+  👥 Sub-profile creation for multi-account
   🎯 Smart authentication detection
   🔄 Automatic session management
   📋 Profile templates for quick setup
