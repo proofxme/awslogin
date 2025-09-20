@@ -1,6 +1,6 @@
 {
   "name": "@proofxme/awslogin",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Smart AWS profile authentication CLI tool with native support for IAM Identity Center (SSO), Cross-Account Access, MFA, and direct authentication",
   "main": "src/index.js",
   "bin": {
