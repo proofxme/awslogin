@@ -176,6 +176,9 @@ jobs:
       - name: Create and push tag
         if: steps.check.outputs.exists == 'false'
         run: |
+          git config --local user.email "jorge@pox.me"
+          git config --local user.name "Jorge de los Santos"
+          
           if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
             echo "ℹ️ Tag ${{ steps.version.outputs.tag }} already exists"
           else
