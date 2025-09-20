@@ -3,7 +3,6 @@
 const BaseWizard = require('./base-wizard');
 const { setProfileConfig, getProfileConfig } = require('../services/aws-config');
 const { checkCommand } = require('../core/aws');
-const { prompt } = require('../core/prompt');
 const { PROFILE_TEMPLATES } = require('../config/templates');
 const AutoDiscovery = require('../services/auto-discovery');
 
@@ -165,7 +164,7 @@ class SetupWizard extends BaseWizard {
   async configureAuthMethod(config) {
     switch (config.authMethod) {
       case 'sso':
-        await this.configureSS0(config);
+        await this.configureSSO(config);
         break;
       case 'mfa':
         await this.configureMFA(config);
@@ -179,17 +178,58 @@ class SetupWizard extends BaseWizard {
     }
   }
 
-  async configureSS0(config) {
+  async configureSSO(config) {
     this.showInfo('Configuring AWS SSO / Identity Center authentication');
 
-    // Try to auto-discover SSO URL
-    const discoveredUrl = await this.autoDiscovery.discoverSSOUrl();
+    // Check for existing SSO profiles
+    const existingProfiles = await this.autoDiscovery.getExistingProfiles();
+    const ssoProfiles = [];
+    for (const profileName of existingProfiles) {
+      const profileConfig = await getProfileConfig(profileName);
+      if (profileConfig && (profileConfig.sso_start_url || profileConfig.sso_session)) {
+        ssoProfiles.push(profileName);
+      }
+    }
 
-    if (discoveredUrl) {
-      this.showInfo(`Found existing SSO URL: ${discoveredUrl}`);
-      const useDiscovered = await this.confirm('Use this SSO URL?', true);
-      if (useDiscovered) {
-        config.sso_start_url = discoveredUrl;
+    if (ssoProfiles.length > 0) {
+      this.showInfo(`Found existing SSO profiles: ${ssoProfiles.join(', ')}`);
+      const copyFromExisting = await this.confirm('Copy SSO settings from existing profile?', true);
+      if (copyFromExisting) {
+        const sourceProfile = await this.select('Select profile to copy from:',
+          ssoProfiles.map(p => ({ title: p, value: p }))
+        );
+        const sourceConfig = await getProfileConfig(sourceProfile);
+
+        // Copy SSO settings
+        config.sso_start_url = sourceConfig.sso_start_url;
+        config.sso_region = sourceConfig.sso_region;
+        config.sso_session = sourceConfig.sso_session;
+        config.sso_role_name = sourceConfig.sso_role_name;
+
+        this.showSuccess(`Copied SSO settings from '${sourceProfile}'`);
+
+        // Ask if they want different account/role
+        const differentAccount = await this.confirm('Configure different account/role?', false);
+        if (!differentAccount) {
+          return; // Use the copied settings as-is
+        }
+      }
+    }
+
+    this.showInfo('📋 SSO Setup Guide:');
+    this.showInfo('1. Get your SSO start URL from your admin (e.g., https://company.awsapps.com/start)');
+    this.showInfo('2. Know the AWS region where SSO is configured');
+    this.showInfo('3. Know the role name you want to assume (e.g., AdministratorAccess)');
+
+    // Try to auto-discover SSO URL if not copied
+    if (!config.sso_start_url) {
+      const discoveredUrl = await this.autoDiscovery.discoverSSOUrl();
+      if (discoveredUrl) {
+        this.showInfo(`Found existing SSO URL: ${discoveredUrl}`);
+        const useDiscovered = await this.confirm('Use this SSO URL?', true);
+        if (useDiscovered) {
+          config.sso_start_url = discoveredUrl;
+        }
       }
     }
 
@@ -245,6 +285,45 @@ class SetupWizard extends BaseWizard {
 
   async configureMFA(config) {
     this.showInfo('Configuring Multi-Factor Authentication');
+
+    // Check for existing MFA profiles
+    const existingProfiles = await this.autoDiscovery.getExistingProfiles();
+    const mfaProfiles = [];
+    for (const profileName of existingProfiles) {
+      const profileConfig = await getProfileConfig(profileName);
+      if (profileConfig && profileConfig.mfa_serial) {
+        mfaProfiles.push(profileName);
+      }
+    }
+
+    if (mfaProfiles.length > 0) {
+      this.showInfo(`Found existing MFA profiles: ${mfaProfiles.join(', ')}`);
+      const copyFromExisting = await this.confirm('Copy MFA settings from existing profile?', true);
+      if (copyFromExisting) {
+        const sourceProfile = await this.select('Select profile to copy from:',
+          mfaProfiles.map(p => ({ title: p, value: p }))
+        );
+        const sourceConfig = await getProfileConfig(sourceProfile);
+
+        // Copy MFA settings
+        config.aws_access_key_id = sourceConfig.aws_access_key_id;
+        config.aws_secret_access_key = sourceConfig.aws_secret_access_key;
+        config.mfa_serial = sourceConfig.mfa_serial;
+        config.op_item = sourceConfig.op_item; // Copy 1Password config if exists
+
+        this.showSuccess(`Copied MFA settings from '${sourceProfile}'`);
+
+        // Skip manual entry if copied successfully
+        if (config.aws_access_key_id && config.mfa_serial) {
+          return;
+        }
+      }
+    }
+
+    this.showInfo('📋 MFA Setup Guide:');
+    this.showInfo('1. You need your AWS Access Key ID and Secret Access Key');
+    this.showInfo('2. Your MFA device serial (ARN from IAM console)');
+    this.showInfo('3. Optional: 1Password for automatic token retrieval');
 
     // Access Key ID
     config.aws_access_key_id = await this.input('AWS Access Key ID:', {
@@ -353,8 +432,67 @@ class SetupWizard extends BaseWizard {
   async configure1Password(config) {
     this.showInfo('Configuring 1Password integration');
 
+    // Check if 1Password CLI is authenticated
+    const opStatus = await checkCommand('op whoami');
+    if (!opStatus) {
+      this.showWarning('1Password CLI is not signed in');
+      this.showInfo('📋 1Password Setup Guide:');
+      this.showInfo('1. Run: op signin');
+      this.showInfo('2. Enter your 1Password credentials');
+      this.showInfo('3. Come back and try again');
+
+      const tryAgain = await this.confirm('Is 1Password CLI signed in now?', false);
+      if (!tryAgain) {
+        this.showInfo('Skipping 1Password integration');
+        return;
+      }
+    }
+
+    // Search for existing AWS MFA items
+    this.showProgress('Searching for AWS MFA items in 1Password...');
+    try {
+      const searchResult = await checkCommand('op item list --categories TOTP --format json');
+      if (searchResult) {
+        // Parse and filter AWS-related items
+        const items = JSON.parse(searchResult.toString() || '[]');
+        const awsItems = items.filter(item =>
+          item.title && (
+            item.title.toLowerCase().includes('aws') ||
+            item.title.toLowerCase().includes('mfa') ||
+            item.title.toLowerCase().includes('amazon')
+          )
+        );
+
+        if (awsItems.length > 0) {
+          this.showInfo(`Found ${awsItems.length} potential AWS MFA items`);
+          const useExisting = await this.confirm('Use existing 1Password item?', true);
+
+          if (useExisting) {
+            const choices = awsItems.map(item => ({
+              title: `${item.title} (${item.id})`,
+              value: item.title
+            }));
+            choices.push({ title: '➕ Enter different item name', value: 'custom' });
+
+            const selection = await this.select('Select 1Password item:', choices);
+            if (selection !== 'custom') {
+              config.op_item = selection;
+              this.showSuccess(`Using 1Password item: ${selection}`);
+              return;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      this.showWarning('Could not search 1Password items automatically');
+    }
+
     const itemName = await this.input('1Password item name containing MFA secret:', {
-      placeholder: 'AWS MFA - ' + config.profileName
+      placeholder: 'AWS MFA - ' + config.profileName,
+      validate: (value) => {
+        if (!value) return 'Item name is required';
+        return true;
+      }
     });
 
     config.op_item = itemName;

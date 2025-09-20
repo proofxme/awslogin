@@ -1,10 +1,10 @@
 'use strict';
 
 const BaseWizard = require('./base-wizard');
-const { getProfiles, getProfileConfig } = require('../services/profile-service');
-const { setProfileConfig } = require('../services/aws-config');
+const { listProfiles, getProfileConfig, setProfileConfig } = require('../services/aws-config');
 const { execSync } = require('child_process');
 const { validateSession } = require('../core/session');
+const { execAwsCommand } = require('../core/aws');
 
 /**
  * Profile management wizard
@@ -14,9 +14,9 @@ class ManageWizard extends BaseWizard {
     this.clear();
     this.showBanner('📋 Profile Management', 'Manage your AWS profiles');
 
-    const profiles = await getProfiles();
+    const profileNames = await listProfiles();
 
-    if (!profiles || profiles.length === 0) {
+    if (!profileNames || profileNames.length === 0) {
       this.showWarning('No profiles found.');
       const create = await this.confirm('Would you like to create a new profile?');
       if (create) {
@@ -31,21 +31,23 @@ class ManageWizard extends BaseWizard {
 
     switch (action) {
       case 'list':
-        return this.listProfiles(profiles);
+        return this.listProfiles(profileNames);
       case 'details':
-        return this.showProfileDetails(profiles);
+        return this.showProfileDetails(profileNames);
       case 'edit':
-        return this.editProfile(profiles);
+        return this.editProfile(profileNames);
       case 'delete':
-        return this.deleteProfile(profiles);
+        return this.deleteProfile(profileNames);
       case 'refresh':
-        return this.refreshCredentials(profiles);
+        return this.refreshCredentials(profileNames);
       case 'clean':
-        return this.cleanExpiredSessions(profiles);
+        return this.cleanExpiredSessions(profileNames);
       case 'org':
         return this.setupOrganizationProfiles();
+      case 'subprofile':
+        return this.createSubProfile(profileNames);
       case 'export':
-        return this.exportProfiles(profiles);
+        return this.exportProfiles(profileNames);
       case 'back':
         const MainWizard = require('./main-wizard');
         const mainWizard = new MainWizard();
@@ -91,6 +93,11 @@ class ManageWizard extends BaseWizard {
         description: 'Create profiles for all organization accounts'
       },
       {
+        title: '👥 Create sub-profile',
+        value: 'subprofile',
+        description: 'Create a sub-profile from existing SSO profile'
+      },
+      {
         title: '📤 Export profiles',
         value: 'export',
         description: 'Export profile configurations'
@@ -105,48 +112,93 @@ class ManageWizard extends BaseWizard {
     return this.select('What would you like to do?', choices);
   }
 
-  async listProfiles(profiles) {
-    this.showBanner('📝 Profile List', `Found ${profiles.length} profile(s)`);
+  async listProfiles(profileNames) {
+    this.showBanner('📝 Profile List', `Found ${profileNames.length} profile(s)`);
 
-    for (const profile of profiles) {
+    // Step 1: Display profiles immediately with just config info (fast)
+    const profilesInfo = [];
+
+    for (const profileName of profileNames) {
       const info = [];
 
+      // Get config quickly (this is fast - just reads from file)
+      const profile = await getProfileConfig(profileName);
+
       // Determine auth type
-      if (profile.sso_start_url || profile.sso_session) {
+      if (profile && profile.sso_start_url || profile && profile.sso_session) {
         info.push('🏢 SSO');
-      } else if (profile.mfa_serial) {
+      } else if (profile && profile.mfa_serial) {
         info.push('📱 MFA');
-      } else if (profile.aws_access_key_id) {
+      } else if (profile && profile.aws_access_key_id) {
         info.push('🔑 Direct');
-      } else if (profile.source_profile) {
+      } else if (profile && profile.source_profile) {
         info.push('🔄 Sub-profile');
-      }
-
-      // Check session status
-      const session = await validateSession(profile.name).catch(() => null);
-      if (session && session.isValid) {
-        info.push('✅ Active');
-        if (session.expiresIn) {
-          info.push(`(${session.expiresIn})`);
-        }
       } else {
-        info.push('❌ Expired');
+        info.push('❓ Unknown');
       }
 
-      // Region
-      if (profile.region) {
+      // Add region if available
+      if (profile && profile.region) {
         info.push(profile.region);
       }
 
-      console.log(`• ${profile.name}: ${info.join(' ')}`);
+      // Store for validation
+      profilesInfo.push({ profileName, info, profile });
+
+      // Display profile immediately without session status
+      console.log(`• ${profileName}: ${info.join(' ')}`);
     }
 
-    await this.confirm('\nPress Enter to continue...');
+    // Step 2: Quick check for cached credentials (fast)
+    console.log('\n📊 Session Status (based on cached credentials):');
+    console.log('─'.repeat(50));
+
+    let activeCount = 0;
+    let expiredCount = 0;
+    let unknownCount = 0;
+
+    for (const { profileName, profile } of profilesInfo) {
+      // Quick check - just look for session token or expiration in config
+      if (profile && profile.aws_session_token) {
+        // Has a session token - check expiration
+        if (profile.aws_expiration || profile.aws_session_expiration) {
+          const expStr = profile.aws_expiration || profile.aws_session_expiration;
+          const expTime = new Date(expStr);
+          const now = new Date();
+
+          if (expTime > now) {
+            const hours = Math.floor((expTime - now) / (1000 * 60 * 60));
+            const mins = Math.floor(((expTime - now) % (1000 * 60 * 60)) / (1000 * 60));
+            console.log(`  ✅ ${profileName}: Active (expires in ${hours}h ${mins}m)`);
+            activeCount++;
+          } else {
+            console.log(`  ❌ ${profileName}: Expired`);
+            expiredCount++;
+          }
+        } else {
+          console.log(`  ✅ ${profileName}: Has session token`);
+          activeCount++;
+        }
+      } else if (profile && (profile.aws_access_key_id || profile.sso_start_url)) {
+        // Has credentials but no session - these don't expire
+        console.log(`  🔐 ${profileName}: Credentials configured`);
+        unknownCount++;
+      } else {
+        console.log(`  ❓ ${profileName}: No credentials`);
+        unknownCount++;
+      }
+    }
+
+    console.log('─'.repeat(50));
+    console.log(`Summary: ${activeCount} active sessions, ${expiredCount} expired, ${unknownCount} configured`);
+    console.log('\n💡 Tip: Use "awslogin <profile>" to refresh expired sessions');
+
+    await this.confirm('Press Enter to continue...');
     return this.run();
   }
 
-  async showProfileDetails(profiles) {
-    const profileName = await this.selectProfile(profiles);
+  async showProfileDetails(profileNames) {
+    const profileName = await this.selectProfile(profileNames);
     if (!profileName) return this.run();
 
     const config = await getProfileConfig(profileName);
@@ -165,7 +217,12 @@ class ManageWizard extends BaseWizard {
     }
 
     // Check session validity
-    const session = await validateSession(profileName).catch(() => null);
+    let session;
+    try {
+      session = validateSession(profileName);
+    } catch {
+      session = null;
+    }
     console.log('\nSession Status:');
     if (session && session.isValid) {
       console.log('  ✅ Valid');
@@ -180,8 +237,8 @@ class ManageWizard extends BaseWizard {
     return this.run();
   }
 
-  async editProfile(profiles) {
-    const profileName = await this.selectProfile(profiles);
+  async editProfile(profileNames) {
+    const profileName = await this.selectProfile(profileNames);
     if (!profileName) return this.run();
 
     const SetupWizard = require('./setup-wizard');
@@ -195,8 +252,8 @@ class ManageWizard extends BaseWizard {
     return this.run();
   }
 
-  async deleteProfile(profiles) {
-    const profileName = await this.selectProfile(profiles);
+  async deleteProfile(profileNames) {
+    const profileName = await this.selectProfile(profileNames);
     if (!profileName) return this.run();
 
     this.showWarning(`This will permanently delete profile '${profileName}'`);
@@ -222,8 +279,8 @@ class ManageWizard extends BaseWizard {
     return this.run();
   }
 
-  async refreshCredentials(profiles) {
-    const profileName = await this.selectProfile(profiles);
+  async refreshCredentials(profileNames) {
+    const profileName = await this.selectProfile(profileNames);
     if (!profileName) return this.run();
 
     this.showProgress(`Refreshing credentials for '${profileName}'...`);
@@ -241,28 +298,33 @@ class ManageWizard extends BaseWizard {
     return this.run();
   }
 
-  async cleanExpiredSessions(profiles) {
+  async cleanExpiredSessions(profileNames) {
     this.showProgress('Checking for expired sessions...');
 
     let cleanedCount = 0;
 
-    for (const profile of profiles) {
-      const session = await validateSession(profile.name).catch(() => null);
+    for (const profileName of profileNames) {
+      let session;
+      try {
+        session = validateSession(profileName);
+      } catch {
+        session = null;
+      }
 
       if (!session || !session.isValid) {
         // Check if profile has temporary credentials
-        const config = await getProfileConfig(profile.name);
+        const config = await getProfileConfig(profileName);
 
         if (config.aws_session_token || config.aws_expiration) {
           try {
             // Remove temporary credentials
-            await setProfileConfig(profile.name, 'aws_session_token', '');
-            await setProfileConfig(profile.name, 'aws_expiration', '');
+            await setProfileConfig(profileName, 'aws_session_token', '');
+            await setProfileConfig(profileName, 'aws_expiration', '');
 
-            console.log(`  ✓ Cleaned expired session for '${profile.name}'`);
+            console.log(`  ✓ Cleaned expired session for '${profileName}'`);
             cleanedCount++;
           } catch (error) {
-            console.log(`  ✗ Failed to clean '${profile.name}': ${error.message}`);
+            console.log(`  ✗ Failed to clean '${profileName}': ${error.message}`);
           }
         }
       }
@@ -282,8 +344,14 @@ class ManageWizard extends BaseWizard {
     this.showBanner('🏢 Organization Profile Setup', 'Create profiles for all AWS accounts');
 
     // Select base profile
-    const profiles = await getProfiles();
-    const ssoProfiles = profiles.filter(p => p.sso_start_url || p.sso_session);
+    const profileNames = await listProfiles();
+    const ssoProfiles = [];
+    for (const profileName of profileNames) {
+      const config = await getProfileConfig(profileName);
+      if (config && (config.sso_start_url || config.sso_session)) {
+        ssoProfiles.push(profileName);
+      }
+    }
 
     if (ssoProfiles.length === 0) {
       this.showError('No SSO profiles found. Please set up an SSO profile first.');
@@ -293,19 +361,25 @@ class ManageWizard extends BaseWizard {
 
     const baseProfile = await this.select(
       'Select base SSO profile:',
-      ssoProfiles.map(p => ({ title: p.name, value: p.name }))
+      ssoProfiles.map(p => ({ title: p, value: p }))
     );
 
     this.showProgress('Retrieving organization accounts...');
 
     try {
       // Get all accounts in the organization
-      const result = execSync(
-        `aws organizations list-accounts --profile ${baseProfile} --query "Accounts[?Status=='ACTIVE'].{Id:Id,Name:Name}" --output json`,
-        { stdio: 'pipe', encoding: 'utf8' }
-      );
+      const result = execAwsCommand([
+        'organizations', 'list-accounts',
+        '--profile', baseProfile,
+        '--query', "Accounts[?Status=='ACTIVE'].{Id:Id,Name:Name}",
+        '--output', 'json'
+      ]);
 
-      const accounts = JSON.parse(result);
+      if (!result.success) {
+        throw new Error(result.stderr || 'Failed to list organization accounts');
+      }
+
+      const accounts = JSON.parse(result.stdout);
 
       if (!accounts || accounts.length === 0) {
         this.showError('No active accounts found in the organization');
@@ -365,7 +439,120 @@ class ManageWizard extends BaseWizard {
     return this.run();
   }
 
-  async exportProfiles(profiles) {
+  async createSubProfile(profileNames) {
+    this.showBanner('👥 Sub-Profile Creation', 'Create a sub-profile for specific account access');
+
+    // Find SSO profiles to use as parent
+    const ssoProfiles = [];
+    for (const profileName of profileNames) {
+      const config = await getProfileConfig(profileName);
+      if (config && (config.sso_start_url || config.sso_session)) {
+        ssoProfiles.push(profileName);
+      }
+    }
+
+    if (ssoProfiles.length === 0) {
+      this.showError('No SSO profiles found. Sub-profiles require an SSO parent profile.');
+      await this.confirm('Press Enter to continue...');
+      return this.run();
+    }
+
+    this.showInfo('📋 Sub-Profile Guide:');
+    this.showInfo('Sub-profiles inherit SSO settings from a parent profile but target specific AWS accounts.');
+    this.showInfo('Benefits: Single sign-on, account-specific access, organized profile management.');
+
+    // Select parent profile
+    const parentProfile = await this.select(
+      'Select parent SSO profile:',
+      ssoProfiles.map(p => ({ title: p, value: p }))
+    );
+
+    const parentConfig = await getProfileConfig(parentProfile);
+
+    // Get sub-profile name
+    let subProfileName;
+    let isValid = false;
+    while (!isValid) {
+      subProfileName = await this.input('Enter sub-profile name:', {
+        placeholder: `${parentProfile}-account-name`,
+        validate: (value) => {
+          if (!value) return 'Sub-profile name is required';
+          if (value === parentProfile) return 'Sub-profile name must be different from parent';
+          return true;
+        }
+      });
+
+      if (profileNames.includes(subProfileName)) {
+        const overwrite = await this.confirm(`Profile '${subProfileName}' already exists. Overwrite?`, false);
+        if (overwrite) {
+          isValid = true;
+        }
+      } else {
+        isValid = true;
+      }
+    }
+
+    // Get AWS Account ID
+    const accountId = await this.input('AWS Account ID:', {
+      placeholder: '123456789012',
+      validate: (value) => {
+        if (!value) return 'Account ID is required';
+        if (!/^\d{12}$/.test(value)) return 'Account ID must be 12 digits';
+        return true;
+      }
+    });
+
+    // Get role name
+    const roleName = await this.input('Role name:', {
+      default: parentConfig.sso_role_name || 'AdministratorAccess',
+      placeholder: 'AdministratorAccess'
+    });
+
+    // Create sub-profile configuration
+    const subConfig = {
+      sso_account_id: accountId,
+      sso_role_name: roleName,
+      region: parentConfig.region || 'us-east-1',
+      output: parentConfig.output || 'json'
+    };
+
+    // Copy SSO configuration from parent
+    if (parentConfig.sso_session) {
+      subConfig.sso_session = parentConfig.sso_session;
+    } else {
+      subConfig.sso_start_url = parentConfig.sso_start_url;
+      subConfig.sso_region = parentConfig.sso_region;
+    }
+
+    // Save sub-profile
+    this.showProgress('Creating sub-profile...');
+    try {
+      for (const [key, value] of Object.entries(subConfig)) {
+        await setProfileConfig(subProfileName, key, value);
+      }
+
+      this.showSuccess(`Sub-profile '${subProfileName}' created successfully!`);
+      this.showInfo(`Parent profile: ${parentProfile}`);
+      this.showInfo(`Target account: ${accountId}`);
+      this.showInfo(`Role: ${roleName}`);
+
+      // Offer to test authentication
+      const testAuth = await this.confirm('Test authentication to this sub-profile?', true);
+      if (testAuth) {
+        const AuthWizard = require('./auth-wizard');
+        const authWizard = new AuthWizard();
+        await authWizard.run(subProfileName);
+      }
+
+    } catch (error) {
+      this.showError(`Failed to create sub-profile: ${error.message}`);
+    }
+
+    await this.confirm('\nPress Enter to continue...');
+    return this.run();
+  }
+
+  async exportProfiles(profileNames) {
     this.showBanner('📤 Export Profiles', 'Export profile configurations');
 
     const format = await this.select('Select export format:', [
@@ -378,8 +565,8 @@ class ManageWizard extends BaseWizard {
 
     const exportData = [];
 
-    for (const profile of profiles) {
-      const config = await getProfileConfig(profile.name);
+    for (const profileName of profileNames) {
+      const config = await getProfileConfig(profileName);
 
       // Remove sensitive data if requested
       if (!includeSecrets) {
@@ -389,7 +576,7 @@ class ManageWizard extends BaseWizard {
       }
 
       exportData.push({
-        name: profile.name,
+        name: profileName,
         config
       });
     }
@@ -438,10 +625,10 @@ class ManageWizard extends BaseWizard {
     return this.run();
   }
 
-  async selectProfile(profiles) {
-    const choices = profiles.map(p => ({
-      title: p.name,
-      value: p.name
+  async selectProfile(profileNames) {
+    const choices = profileNames.map(p => ({
+      title: p,
+      value: p
     }));
 
     choices.push({
@@ -453,8 +640,8 @@ class ManageWizard extends BaseWizard {
   }
 
   async getExistingProfiles() {
-    const profiles = await getProfiles();
-    return profiles.map(p => p.name);
+    const profileNames = await listProfiles();
+    return profileNames;
   }
 
   slugify(text) {

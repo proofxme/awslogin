@@ -1,7 +1,7 @@
 'use strict';
 
 const BaseWizard = require('./base-wizard');
-const { getProfiles } = require('../services/profile-service');
+const { listProfiles } = require('../services/aws-config');
 const SmartAuth = require('../services/smart-auth');
 
 /**
@@ -53,9 +53,9 @@ class AuthWizard extends BaseWizard {
   }
 
   async selectProfile() {
-    const profiles = await getProfiles();
+    const profileNames = await listProfiles();
 
-    if (!profiles || profiles.length === 0) {
+    if (!profileNames || profileNames.length === 0) {
       this.showWarning('No profiles found. Please set up a profile first.');
 
       const setup = await this.confirm('Would you like to set up a new profile?');
@@ -71,37 +71,11 @@ class AuthWizard extends BaseWizard {
     }
 
     // Format profiles for selection
-    const choices = profiles.map(profile => {
-      const info = [];
-
-      if (profile.sso_start_url) {
-        info.push('SSO');
-      } else if (profile.mfa_serial) {
-        info.push('MFA');
-      } else if (profile.aws_access_key_id) {
-        info.push('Direct');
-      }
-
-      if (profile.region) {
-        info.push(profile.region);
-      }
-
-      if (profile.aws_expiration) {
-        const expiry = new Date(profile.aws_expiration);
-        const now = new Date();
-        if (expiry > now) {
-          const hours = Math.floor((expiry - now) / 1000 / 60 / 60);
-          const minutes = Math.floor(((expiry - now) / 1000 / 60) % 60);
-          info.push(`expires in ${hours}h ${minutes}m`);
-        } else {
-          info.push('expired');
-        }
-      }
-
+    const choices = profileNames.map(profileName => {
       return {
-        title: profile.name,
-        value: profile.name,
-        description: info.length > 0 ? info.join(' • ') : 'No details available'
+        title: profileName,
+        value: profileName,
+        description: 'AWS Profile'
       };
     });
 

@@ -139,7 +139,50 @@ function checkSsoTokenExpiration(profile, ssoSession) {
   }
 }
 
+/**
+ * Wrapper for compatibility with existing code
+ */
+function validateSession(profile, quiet = true) {
+  // Temporarily suppress console output for quiet mode
+  const originalLog = console.log;
+  if (quiet) {
+    console.log = () => {};
+  }
+
+  const valid = isSessionValid(profile);
+
+  // Restore console.log
+  if (quiet) {
+    console.log = originalLog;
+  }
+
+  // Get expiration info if valid
+  let expiresIn = null;
+  if (valid) {
+    const credsExpireResult = execAwsCommand(['configure', 'get', 'aws_session_expiration', '--profile', profile]);
+    if (credsExpireResult.success && credsExpireResult.stdout) {
+      const expirationTime = new Date(credsExpireResult.stdout);
+      const currentTime = new Date();
+      const remainingTimeMs = expirationTime - currentTime;
+      const remainingHours = Math.floor(remainingTimeMs / (1000 * 60 * 60));
+      const remainingMinutes = Math.floor((remainingTimeMs % (1000 * 60 * 60)) / (1000 * 60));
+
+      if (remainingHours > 0) {
+        expiresIn = `${remainingHours}h ${remainingMinutes}m`;
+      } else {
+        expiresIn = `${remainingMinutes}m`;
+      }
+    }
+  }
+
+  return {
+    isValid: valid,
+    expiresIn: expiresIn
+  };
+}
+
 module.exports = {
   checkCredentialsExpired,
-  isSessionValid
+  isSessionValid,
+  validateSession
 };

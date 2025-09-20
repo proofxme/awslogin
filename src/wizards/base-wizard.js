@@ -1,6 +1,6 @@
 'use strict';
 
-const { prompt } = require('../core/prompt');
+const { askText, askYesNo, selectFromList } = require('../core/prompt');
 
 /**
  * Base wizard class providing common functionality for all wizards
@@ -57,21 +57,40 @@ class BaseWizard {
    * Confirms an action with the user
    */
   async confirm(message, defaultValue = true) {
-    return prompt.confirm(message, defaultValue);
+    return askYesNo(message, { defaultYes: defaultValue });
   }
 
   /**
    * Prompts for text input
    */
   async input(message, options = {}) {
-    return prompt.text(message, options);
+    return askText(message, options);
   }
 
   /**
    * Prompts for selection from a list
    */
   async select(message, choices, options = {}) {
-    return prompt.select(message, choices, options);
+    // Convert choices to the format expected by selectFromList
+    const formattedChoices = choices.map(choice => {
+      if (typeof choice === 'string') {
+        return choice;
+      }
+      // If choice has title, use that as the display
+      return choice.title || choice.label || choice.value;
+    });
+
+    const selected = await selectFromList(formattedChoices, {
+      header: message,
+      ...options
+    });
+
+    // Find and return the original choice object or value
+    const selectedIndex = formattedChoices.indexOf(selected);
+    if (selectedIndex >= 0 && typeof choices[selectedIndex] === 'object') {
+      return choices[selectedIndex].value;
+    }
+    return selected;
   }
 
   /**

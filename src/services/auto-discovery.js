@@ -1,7 +1,7 @@
 'use strict';
 
 const { execSync } = require('child_process');
-const { getProfiles, getProfileConfig } = require('./profile-service');
+const { listProfiles, getProfileConfig } = require('./aws-config');
 
 /**
  * Auto-discovery service for AWS configuration
@@ -12,7 +12,7 @@ class AutoDiscovery {
    */
   async discoverSSOUrl() {
     try {
-      const profiles = await getProfiles();
+      const profiles = await listProfiles();
 
       const ssoUrls = new Set();
 
@@ -136,7 +136,7 @@ class AutoDiscovery {
 
     // Check most common region in existing profiles
     try {
-      const profiles = await getProfiles();
+      const profiles = await listProfiles();
       const regionCounts = {};
 
       for (const profile of profiles) {
@@ -163,7 +163,7 @@ class AutoDiscovery {
    */
   async getExistingProfiles() {
     try {
-      const profiles = await getProfiles();
+      const profiles = await listProfiles();
       return profiles.map(p => p.name);
     } catch {
       return [];

@@ -4,7 +4,7 @@ const { getProfileConfig } = require('./aws-config');
 const { authenticateSSO } = require('./sso');
 const { authenticateMFA } = require('./mfa');
 const { validateSession } = require('../core/session');
-const { prompt } = require('../core/prompt');
+const { askYesNo, selectFromList } = require('../core/prompt');
 
 /**
  * Smart authentication that auto-detects the best authentication method
@@ -102,7 +102,7 @@ class SmartAuth {
 
   async checkExistingSession(profileName) {
     try {
-      const result = await validateSession(profileName);
+      const result = validateSession(profileName);
       return result && result.isValid;
     } catch {
       return false;
@@ -133,9 +133,9 @@ class SmartAuth {
 
         // Offer to select account if --select wasn't provided
         if (!options.select && result.accounts && result.accounts.length > 1) {
-          const selectAccount = await prompt.confirm(
+          const selectAccount = await askYesNo(
             'Multiple accounts available. Would you like to select one?',
-            false
+            { defaultYes: false }
           );
           if (selectAccount) {
             return authenticateSSO(profileName, { ...options, select: true });
@@ -252,7 +252,15 @@ class SmartAuth {
       }
     ];
 
-    const action = await prompt.select('What would you like to do?', choices);
+    // Format choices for selectFromList
+    const formattedChoices = choices.map(c => c.title);
+    const selected = await selectFromList(formattedChoices, {
+      header: 'What would you like to do?'
+    });
+
+    // Map back to action value
+    const selectedIndex = formattedChoices.indexOf(selected);
+    const action = choices[selectedIndex].value;
 
     switch (action) {
       case 'configure': {
