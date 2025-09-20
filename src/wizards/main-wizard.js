@@ -4,7 +4,7 @@ const BaseWizard = require('./base-wizard');
 const SetupWizard = require('./setup-wizard');
 const ManageWizard = require('./manage-wizard');
 const AuthWizard = require('./auth-wizard');
-const { getProfiles } = require('../services/profile-service');
+const { listProfiles } = require('../services/aws-config');
 
 /**
  * Main interactive wizard - entry point when no arguments provided
@@ -15,7 +15,7 @@ class MainWizard extends BaseWizard {
     this.showBanner('🔐 AWS Login Interactive Wizard', 'Simplifying AWS authentication');
 
     // Check if any profiles exist
-    const profiles = await getProfiles();
+    const profiles = await listProfiles();
     const hasProfiles = profiles && profiles.length > 0;
 
     if (!hasProfiles) {

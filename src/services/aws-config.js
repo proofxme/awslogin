@@ -76,29 +76,76 @@ function setRegion(profile, region) {
   return setProfileValue(profile, 'region', region);
 }
 
-async function getProfileConfig(profile) {
-  const keys = [
-    'aws_access_key_id',
-    'aws_secret_access_key',
-    'aws_session_token',
-    'aws_session_expiration',
-    'region',
-    'output',
-    'mfa_serial',
-    'role_arn',
-    'source_profile',
-    'external_id',
-    'duration_seconds',
-    'sso_start_url',
-    'sso_region',
-    'sso_account_id',
-    'sso_role_name',
-    'sso_session',
-    'op_item',
-    'aws_expiration'
-  ];
+// Cache for profile configs to avoid repeated AWS CLI calls
+let profileConfigCache = null;
+let cacheTimestamp = 0;
+const CACHE_TTL = 5000; // Cache for 5 seconds
 
-  return getProfileMetadata(profile, keys);
+async function getProfileConfig(profile) {
+  // Use cached version if available and fresh
+  if (profileConfigCache && (Date.now() - cacheTimestamp) < CACHE_TTL) {
+    return profileConfigCache[profile] || {};
+  }
+
+  // If cache is stale or missing, refresh it synchronously
+  refreshProfileCache();
+
+  // Return the cached version after refresh
+  return profileConfigCache[profile] || {};
+}
+
+// Fast batch reading of all profile configs
+function refreshProfileCache() {
+  try {
+    const { execSync } = require('child_process');
+
+    // Read both config and credentials files directly
+    const configFile = execSync('cat ~/.aws/config 2>/dev/null', { encoding: 'utf8' });
+    const credFile = execSync('cat ~/.aws/credentials 2>/dev/null', { encoding: 'utf8' });
+
+    const cache = {};
+
+    // Parse config file
+    let currentProfile = null;
+    for (const line of configFile.split('\n')) {
+      const profileMatch = line.match(/^\[(?:profile\s+)?(.+)\]$/);
+      if (profileMatch) {
+        currentProfile = profileMatch[1];
+        if (!cache[currentProfile]) cache[currentProfile] = {};
+      } else if (currentProfile && line.includes('=')) {
+        const [key, value] = line.split('=').map(s => s.trim());
+        if (key && value) {
+          cache[currentProfile][key.replace(/-/g, '_')] = value;
+        }
+      }
+    }
+
+    // Parse credentials file
+    currentProfile = null;
+    for (const line of credFile.split('\n')) {
+      const profileMatch = line.match(/^\[(.+)\]$/);
+      if (profileMatch) {
+        currentProfile = profileMatch[1];
+        if (!cache[currentProfile]) cache[currentProfile] = {};
+      } else if (currentProfile && line.includes('=')) {
+        const [key, value] = line.split('=').map(s => s.trim());
+        if (key && value) {
+          cache[currentProfile][key.replace(/-/g, '_')] = value;
+        }
+      }
+    }
+
+    profileConfigCache = cache;
+    cacheTimestamp = Date.now();
+  } catch (error) {
+    // Fallback to empty cache on error
+    profileConfigCache = {};
+    cacheTimestamp = Date.now();
+  }
+}
+
+function setProfileConfig(profile, key, value) {
+  return setProfileValue(profile, key, value);
 }
 
 module.exports = {
@@ -113,5 +160,6 @@ module.exports = {
   setTemporaryCredentials,
   getRegion,
   setRegion,
-  getProfileConfig
+  getProfileConfig,
+  setProfileConfig
 };
