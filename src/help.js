@@ -1,55 +1,52 @@
 'use strict';
 
+const { version } = require('../package.json');
+
 function displayHelp() {
   const helpText = `
-🔐 AWS Profile Auth CLI - Help
-===========================
-
-A smart CLI tool that streamlines authentication with AWS profiles, supporting multiple authentication methods including AWS IAM Identity Center (SSO), MFA, and direct authentication.
+🔐 AWS Login v${version} - Interactive AWS Authentication
+═══════════════════════════════════════════════════════
 
 USAGE:
-  awslogin <profile_name> [options]
-
-OPTIONS:
-  --help, -h                   Show this help information
-  --select                     Prompt for account selection after SSO authentication
-  --token <mfa_token>          Provide MFA token directly without prompting
-  --setup-iam-identity-center  Configure cross-account access through IAM Identity Center
-  --clean                      Remove temporary credentials from AWS profile (with confirmation)
-  --configure                  Run the profile configuration wizard (1Password integration, MFA settings, etc.)
-  --configure --all-org        Create profiles for all AWS organization accounts (main_profile-account_name format)
-  --change                     Force selection of a different account, ignoring existing sub-profiles
+  awslogin                    Launch interactive wizard
+  awslogin <profile>          Quick authenticate to profile
+  awslogin <command>          Run specific command
 
 COMMANDS:
-  awslogin <profile>                          Authenticate with the specified AWS profile
-  awslogin <profile> --select                 Authenticate and select from available accounts
-  awslogin <profile> --token <mfa_token>      Authenticate with provided MFA token
-  awslogin <profile> --setup-iam-identity-center  Set up cross-account access
-  awslogin <profile> --clean                  Remove temporary credentials from the profile
-  awslogin <profile> --configure              Run profile configuration wizard
-  awslogin <profile> --configure --all-org    Create profiles for all accounts in the organization
-  awslogin <profile> --change                 Select a different account and create a sub-profile
+  setup, configure            Setup new AWS profile
+  manage, list                Manage existing profiles
+  auth, login                 Authenticate to a profile
+  help                        Show this help message
+  version                     Show version information
 
-SUB-PROFILES:
-  When using SSO with --select, sub-profiles are created with format: profile-account-name
-  These sub-profiles automatically reuse the parent profile's SSO session to avoid multiple logins.
+QUICK AUTHENTICATION:
+  awslogin work              Authenticate to 'work' profile
+  awslogin work --select     Choose AWS account after auth
+  awslogin work --force      Force re-authentication
 
-AUTHENTICATION METHODS:
-  🔹 AWS IAM Identity Center (SSO)
-  🔹 MFA (Multi-Factor Authentication)
-  🔹 Direct Authentication
+INTERACTIVE MODE:
+  Simply run 'awslogin' without arguments to:
+  • Setup new profiles with guided wizard
+  • Authenticate with smart detection
+  • Manage profiles interactively
+  • Access contextual help
 
-CROSS-ACCOUNT ACCESS:
-  Use the --setup-iam-identity-center flag to configure secure cross-account access.
+FEATURES:
+  🏢 AWS SSO / Identity Center support
+  📱 Multi-Factor Authentication (MFA)
+  🔐 1Password integration for MFA tokens
+  🎯 Smart authentication detection
+  🔄 Automatic session management
+  📋 Profile templates for quick setup
+  🌍 Auto-discovery of AWS settings
 
 EXAMPLES:
-  $ awslogin company-dev
-  $ awslogin company-dev --select
-  $ awslogin admin --token 123456
-  $ awslogin company --setup-iam-identity-center
-  $ awslogin company --configure --all-org
+  $ awslogin                 # Start interactive wizard
+  $ awslogin setup           # Setup new profile
+  $ awslogin dev             # Login to 'dev' profile
+  $ awslogin manage          # Manage all profiles
 
-For more information, visit: https://github.com/awslogin/awslogin-cli
+For more information: https://github.com/proofxme/awslogin
 `;
 
   console.log(helpText);
