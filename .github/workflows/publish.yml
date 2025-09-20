@@ -2,10 +2,8 @@ name: Publish to npm
 
 on:
   push:
-    tags:
-      - 'v*'
-  release:
-    types: [created]
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version:
@@ -21,6 +19,7 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: write
       packages: write
@@ -45,10 +44,6 @@ jobs:
             VERSION="${{ github.event.inputs.version }}"
             TAG="v${VERSION}"
             echo "source=input" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG="${{ github.ref_name }}"
-            VERSION="${TAG#v}"
-            echo "source=tag" >> $GITHUB_OUTPUT
           else
             VERSION=$(node -p "require('./package.json').version")
             TAG="v${VERSION}"
@@ -179,7 +174,7 @@ jobs:
           fi
 
       - name: Create and push tag
-        if: steps.version.outputs.source == 'input' && steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.exists == 'false'
         run: |
           if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
             echo "ℹ️ Tag ${{ steps.version.outputs.tag }} already exists"
@@ -190,13 +185,15 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        if: (github.event.inputs.createRelease == 'true' || github.event_name == 'push') && steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.exists == 'false' && (github.event.inputs.createRelease != 'false' || github.event_name == 'push')
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: v${{ steps.version.outputs.version }}
           body_path: changelog.md
           generate_release_notes: true
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
