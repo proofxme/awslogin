@@ -1,0 +1,236 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 3.0.1)'
+        required: false
+        type: string
+      createRelease:
+        description: 'Create GitHub release'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            TAG="v${VERSION}"
+            echo "source=input" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${{ github.ref_name }}"
+            VERSION="${TAG#v}"
+            echo "source=tag" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(node -p "require('./package.json').version")
+            TAG="v${VERSION}"
+            echo "source=package" >> $GITHUB_OUTPUT
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "📦 Version: ${VERSION}"
+          echo "🏷️ Tag: ${TAG}"
+
+      - name: Update package.json version
+        if: github.event.inputs.version && steps.version.outputs.source == 'input'
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          if [ "$CURRENT_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+            echo "✅ Updated package.json to version ${{ steps.version.outputs.version }}"
+          else
+            echo "ℹ️ Package.json already at version ${{ steps.version.outputs.version }}"
+          fi
+
+      - name: Run lint tests
+        run: |
+          echo "🧪 Running lint tests..."
+          npm run lint
+
+      - name: Check if version exists on npm
+        id: check
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          VERSION="${{ steps.version.outputs.version }}"
+
+          if npm view "${PACKAGE_NAME}@${VERSION}" version 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Version ${VERSION} already exists on npm"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Version ${VERSION} is available for publishing"
+          fi
+
+      - name: Publish to npm
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          echo "🚀 Publishing to npm..."
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify publication
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          VERSION="${{ steps.version.outputs.version }}"
+
+          echo "⏳ Waiting for package to be available..."
+          sleep 10
+
+          for i in {1..6}; do
+            if npm view "${PACKAGE_NAME}@${VERSION}" version 2>/dev/null; then
+              echo "✅ Successfully verified ${PACKAGE_NAME}@${VERSION} on npm"
+              break
+            elif [ $i -eq 6 ]; then
+              echo "⚠️ Package published but not immediately visible (this is normal)"
+            else
+              echo "⏳ Checking again in 5 seconds..."
+              sleep 5
+            fi
+          done
+
+      - name: Generate changelog
+        if: steps.check.outputs.exists == 'false'
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          {
+            echo "## AWS Login v${{ steps.version.outputs.version }}"
+            echo ""
+
+            if [ -z "$PREVIOUS_TAG" ]; then
+              echo "🎉 **Initial Release**"
+              echo ""
+              echo "Interactive CLI wizard for AWS authentication with support for:"
+              echo "- 🏢 AWS SSO / Identity Center"
+              echo "- 📱 Multi-Factor Authentication (MFA)"
+              echo "- 🔐 1Password integration"
+              echo "- 🎯 Smart authentication detection"
+              echo "- 📋 Profile templates"
+            else
+              echo "### What's Changed"
+              echo ""
+              git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%an)" | grep -v "^- chore" | head -20
+            fi
+
+            echo ""
+            echo ""
+            echo "### Installation"
+            echo ""
+            echo "\`\`\`bash"
+            echo "npm install -g @proofxme/awslogin"
+            echo "\`\`\`"
+            echo ""
+            echo "### Quick Start"
+            echo ""
+            echo "\`\`\`bash"
+            echo "# Interactive wizard"
+            echo "awslogin"
+            echo ""
+            echo "# Quick authentication"
+            echo "awslogin <profile-name>"
+            echo "\`\`\`"
+          } > changelog.md
+
+      - name: Commit version changes
+        if: github.event.inputs.version && steps.version.outputs.source == 'input' && steps.check.outputs.exists == 'false'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          if git diff --quiet package.json; then
+            echo "ℹ️ No changes to commit"
+          else
+            git add package.json package-lock.json 2>/dev/null || git add package.json
+            git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+            git push origin HEAD:main
+            echo "✅ Pushed version update to main branch"
+          fi
+
+      - name: Create and push tag
+        if: steps.version.outputs.source == 'input' && steps.check.outputs.exists == 'false'
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "ℹ️ Tag ${{ steps.version.outputs.tag }} already exists"
+          else
+            git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.version }}"
+            git push origin "${{ steps.version.outputs.tag }}"
+            echo "✅ Created and pushed tag ${{ steps.version.outputs.tag }}"
+          fi
+
+      - name: Create GitHub Release
+        if: (github.event.inputs.createRelease == 'true' || github.event_name == 'push') && steps.check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: v${{ steps.version.outputs.version }}
+          body_path: changelog.md
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Job Summary
+        run: |
+          echo "# 📦 npm Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ steps.check.outputs.exists }}" == "false" ]]; then
+            echo "## ✅ Successfully Published!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Package**: \`@proofxme/awslogin\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version**: \`${{ steps.version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tag**: \`${{ steps.version.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Installation" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "npm install -g @proofxme/awslogin@${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ⚠️ Version Already Published" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Version \`${{ steps.version.outputs.version }}\` already exists on npm." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "To publish a new version:" >> $GITHUB_STEP_SUMMARY
+            echo "1. Update version in package.json" >> $GITHUB_STEP_SUMMARY
+            echo "2. Re-run this workflow" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [📦 npm Package](https://www.npmjs.com/package/@proofxme/awslogin)" >> $GITHUB_STEP_SUMMARY
+          echo "- [🐙 GitHub Repository](https://github.com/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "${{ github.event.inputs.createRelease }}" == "true" ]] || [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "- [🏷️ GitHub Release](https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }})" >> $GITHUB_STEP_SUMMARY
+          fi
