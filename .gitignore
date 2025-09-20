@@ -65,6 +65,22 @@ dev-debug.log
 # OS specific
 .DS_Store
 
+# Development and documentation files
+CLAUDE.md
+AGENTS.md
+WARP.md
+DESIGN_PROPOSAL.md
+README-new.md
+test-accounts.sh
+.context
+
+# IDE and tool directories
+.cursor/
+.taskmaster/
+.serena/
+.npm-cache/
+.npm-global/
+
 # Task files
 # tasks.json
 # tasks/ 
