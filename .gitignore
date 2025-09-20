@@ -73,6 +73,7 @@ DESIGN_PROPOSAL.md
 README-new.md
 test-accounts.sh
 .context
+workfiles/
 
 # IDE and tool directories
 .cursor/
