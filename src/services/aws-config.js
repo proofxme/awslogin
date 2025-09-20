@@ -76,6 +76,31 @@ function setRegion(profile, region) {
   return setProfileValue(profile, 'region', region);
 }
 
+async function getProfileConfig(profile) {
+  const keys = [
+    'aws_access_key_id',
+    'aws_secret_access_key',
+    'aws_session_token',
+    'aws_session_expiration',
+    'region',
+    'output',
+    'mfa_serial',
+    'role_arn',
+    'source_profile',
+    'external_id',
+    'duration_seconds',
+    'sso_start_url',
+    'sso_region',
+    'sso_account_id',
+    'sso_role_name',
+    'sso_session',
+    'op_item',
+    'aws_expiration'
+  ];
+
+  return getProfileMetadata(profile, keys);
+}
+
 module.exports = {
   listProfiles,
   profileExists,
@@ -87,5 +112,6 @@ module.exports = {
   getProfileMetadata,
   setTemporaryCredentials,
   getRegion,
-  setRegion
+  setRegion,
+  getProfileConfig
 };
