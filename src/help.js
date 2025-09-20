@@ -1,5 +1,4 @@
-// Help Module
-// Provides help content and usage information for AWS Profile Auth CLI
+'use strict';
 
 function displayHelp() {
   const helpText = `
@@ -34,37 +33,23 @@ COMMANDS:
 SUB-PROFILES:
   When using SSO with --select, sub-profiles are created with format: profile-account-name
   These sub-profiles automatically reuse the parent profile's SSO session to avoid multiple logins.
-  
-  Example: 
-    awslogin company --select         # Creates company-dev, company-prod, etc.
-    awslogin company-dev              # Reuses company's SSO session (no browser popup)
 
 AUTHENTICATION METHODS:
   🔹 AWS IAM Identity Center (SSO)
-     - Detects SSO configuration in AWS profiles
-     - Supports browser-based SSO with sso_session references
-     - Account selection with the --select flag
-
   🔹 MFA (Multi-Factor Authentication)
-     - Uses AWS STS with MFA for temporary credentials
-     - Supports providing token via --token flag
-
   🔹 Direct Authentication
-     - Uses direct API credentials from AWS profiles
-     - Validates and refreshes expired credentials
 
 CROSS-ACCOUNT ACCESS:
-  Use the --setup-iam-identity-center flag to configure secure cross-account access:
-  $ awslogin your-profile --setup-iam-identity-center
+  Use the --setup-iam-identity-center flag to configure secure cross-account access.
 
 EXAMPLES:
-  $ awslogin company-dev                # Simple authentication
-  $ awslogin company-dev --select       # SSO with account selection
-  $ awslogin admin --token 123456       # MFA with token provided
-  $ awslogin company --setup-iam-identity-center  # Configure IAM Identity Center
-  $ awslogin company --configure --all-org   # Create profiles for all accounts in organization
+  $ awslogin company-dev
+  $ awslogin company-dev --select
+  $ awslogin admin --token 123456
+  $ awslogin company --setup-iam-identity-center
+  $ awslogin company --configure --all-org
 
-For more information, visit: https://github.com/tebayoso/aws-profile-auth-cli
+For more information, visit: https://github.com/awslogin/awslogin-cli
 `;
 
   console.log(helpText);

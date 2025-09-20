@@ -1,9 +1,7 @@
-// AWS Command Execution Module
-// Provides functions for executing AWS CLI commands
+'use strict';
 
 const { spawnSync } = require('child_process');
 
-// Function to execute AWS CLI commands
 function execAwsCommand(args, options = {}) {
   const result = spawnSync('aws', args, {
     stdio: options.stdio || 'pipe',
@@ -11,7 +9,7 @@ function execAwsCommand(args, options = {}) {
     env: { ...process.env },
     ...options
   });
-  
+
   return {
     stdout: result.stdout ? result.stdout.trim() : '',
     stderr: result.stderr ? result.stderr.trim() : '',
@@ -20,6 +18,12 @@ function execAwsCommand(args, options = {}) {
   };
 }
 
+function commandExists(command) {
+  const result = spawnSync('which', [command], { encoding: 'utf8' });
+  return result.status === 0;
+}
+
 module.exports = {
-  execAwsCommand
+  execAwsCommand,
+  commandExists
 };

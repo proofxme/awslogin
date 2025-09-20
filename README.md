@@ -11,11 +11,12 @@ A smart CLI tool that streamlines authentication with AWS profiles, supporting m
   - Direct credential usage
 - **Account Selection for SSO**: Choose specific accounts and roles when using SSO profiles with access to multiple accounts
 - **Smart Credential Caching**: Caches selected account credentials in sub-profiles for efficient re-use
-- **Session Validation**: Validates existing AWS sessions before attempting re-authentication to avoid unnecessary login prompts  
+- **Session Validation**: Validates existing AWS sessions before attempting re-authentication to avoid unnecessary login prompts
 - **Smart Fallback Mechanism**: Falls back to simpler authentication methods when possible
 - **Token Expiration Checking**: Only requests re-authentication when tokens have expired or are about to expire
 - **1Password Integration**: Automatically retrieves MFA tokens from 1Password if the CLI is installed
 - **Profile Configuration Wizard**: Interactive setup for profile preferences and integrations
+- **Guided Configuration Inputs**: Region/output selectors, role helpers, and clean-up shortcuts streamline daily management
 - **User-Friendly Messages**: Clear, emoji-enhanced status messages
 
 ## Installation
@@ -23,7 +24,7 @@ A smart CLI tool that streamlines authentication with AWS profiles, supporting m
 ### Global Installation (Recommended)
 
 ```bash
-npm install -g aws-profile-auth-cli
+npm install -g awslogin
 ```
 
 After installation, the `awslogin` command will be available globally in your terminal.
@@ -31,7 +32,7 @@ After installation, the `awslogin` command will be available globally in your te
 ### Local Installation
 
 ```bash
-npm install aws-profile-auth-cli
+npm install awslogin
 ```
 
 With local installation, you can run the command using npx:
@@ -39,6 +40,39 @@ With local installation, you can run the command using npx:
 ```bash
 npx awslogin <profile_name>
 ```
+
+## Quick Start
+
+1. Ensure you can run `aws sts get-caller-identity` with your desired IAM Identity Center or long-term profile.
+2. Run `awslogin <profile> --configure` to walk through region/output defaults, MFA devices, and optional 1Password integration.
+3. Execute `awslogin <profile>` (or add `--select`) to authenticate and cache sub-profile credentials for downstream AWS CLI use.
+
+## Profile Management Commands
+
+- `awslogin <profile> --configure` – Launch the guided wizard to adjust regions, outputs, MFA, and 1Password defaults.
+- `awslogin <profile> --configure --all-org` – Generate derived profiles for each organization account with consistent naming.
+- `awslogin <profile> --clean` – Remove cached session keys and metadata for the profile (safe for re-auth).
+- `awslogin <profile> --change` – Force account/role reselection even if cached credentials exist.
+- `awslogin <profile> --setup-iam-identity-center` – Step-by-step IAM Identity Center readiness checklist.
+
+## Configuration Wizard Overview
+
+The wizard now presents consistent selectors and validation so you can breeze through setup:
+
+- **Region & Output Pickers**: Choose from curated AWS region labels and CLI output formats, with an option to retain current settings.
+- **MFA Bootstrapper**: Create or update long-term profiles, auto-import regions, and register MFA devices in one pass.
+- **1Password Integration**: Detects vault availability, lets you pick a default TOTP item, or fall back to manual entry.
+- **Organization Expansion**: Builds `<profile>-<account>` entries with copied SSO settings, role hints, and metadata for quick account switching.
+
+### Account Access Utility
+
+Use `test-accounts.sh` to validate IAM Identity Center access across your organization. Provide the SSO profile to check via the `BASE_PROFILE` environment variable:
+
+```bash
+BASE_PROFILE=my-sso-profile ./test-accounts.sh
+```
+
+The script creates temporary profiles that mirror your SSO configuration, verifies you can assume each account's role, and removes the temporary entries afterwards.
 
 ## Requirements
 
@@ -64,28 +98,28 @@ Examples:
 
 ```bash
 # Simple authentication
-awslogin mycompany-dev
+awslogin my-profile
 
 # SSO with account selection
-awslogin dcycle --select
+awslogin my-sso-profile --select
 
 # MFA with token provided
-awslogin myprofile --token 123456
+awslogin my-mfa-profile --token 123456
 
 # Set up IAM Identity Center for cross-account access
-awslogin dcycle --setup-iam-identity-center
+awslogin my-sso-profile --setup-iam-identity-center
 
 # Clean up temporary credentials from a profile
-awslogin dcycle --clean
+awslogin my-profile --clean
 
 # Configure profile settings and integrations
-awslogin dcycle --configure
+awslogin my-profile --configure
 
 # Create profiles for all AWS organization accounts (standardized naming)
-awslogin dcycle --configure --all-org
+awslogin my-sso-profile --configure --all-org
 
 # Select a different account (change accounts)
-awslogin dcycle --change
+awslogin my-sso-profile --change
 ```
 
 ## Authentication Flow
@@ -139,8 +173,8 @@ The tool supports two types of SSO configurations:
 **A. Direct SSO Configuration (Legacy):**
 
 ```ini
-[profile mycompany]
-sso_start_url = https://mycompany.awsapps.com/start/
+[profile my-sso-profile]
+sso_start_url = https://example.awsapps.com/start/
 sso_account_id = 123456789012
 sso_role_name = AdministratorAccess
 region = us-west-2
@@ -150,15 +184,15 @@ output = json
 **B. Browser-based SSO with `sso_session` Reference (Recommended):**
 
 ```ini
-[profile mycompany]
-sso_session = mycompany
+[profile my-sso-profile]
+sso_session = my-sso-session
 sso_account_id = 123456789012
 sso_role_name = AdministratorAccess
 region = us-west-2
 output = json
 
-[sso-session mycompany]
-sso_start_url = https://mycompany.awsapps.com/start/
+[sso-session my-sso-session]
+sso_start_url = https://example.awsapps.com/start/
 sso_region = us-east-1
 sso_registration_scopes = sso:account:access
 ```
@@ -172,12 +206,12 @@ For MFA-based authentication, you need two profiles:
 Example:
 
 ```ini
-[profile myprofile-long-term]
+[profile my-mfa-profile-long-term]
 aws_access_key_id = AKIAXXXXXXXXXXXXXXXX
 aws_secret_access_key = XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-mfa_serial = arn:aws:iam::123456789012:mfa/myuser
+mfa_serial = arn:aws:iam::123456789012:mfa/username
 
-[profile myprofile]
+[profile my-mfa-profile]
 region = us-west-2
 output = json
 ```
@@ -199,7 +233,7 @@ output = json
 When working with AWS SSO profiles that have access to multiple accounts, you can use the `--select` flag to choose which account and role to use:
 
 ```bash
-awslogin dcycle --select
+awslogin my-sso-profile --select
 ```
 
 ### Cleaning Up Profile Credentials
@@ -207,7 +241,7 @@ awslogin dcycle --select
 You can remove temporary credentials from an AWS profile using the `--clean` flag:
 
 ```bash
-awslogin dcycle --clean
+awslogin my-sso-profile --clean
 ```
 
 This will:
@@ -226,7 +260,7 @@ This is useful when:
 You can switch between different accounts in your organization using the `--change` flag:
 
 ```bash
-awslogin dcycle --change
+awslogin my-sso-profile --change
 ```
 
 This will:
@@ -245,7 +279,7 @@ This is particularly useful when:
 The profile configuration wizard provides an interactive way to configure profile settings and integrations:
 
 ```bash
-awslogin dcycle --configure
+awslogin my-sso-profile --configure
 ```
 
 The wizard allows you to configure:
@@ -277,7 +311,7 @@ The configuration is stored in your AWS config file and used for future authenti
 You can create profiles for all AWS organization accounts with standardized naming using:
 
 ```bash
-awslogin dcycle --configure --all-org
+awslogin my-sso-profile --configure --all-org
 ```
 
 This command:
@@ -294,9 +328,9 @@ This is particularly useful for:
 
 Once configured, you can use these profiles directly:
 ```bash
-aws --profile dcycle-account-name s3 ls
+aws --profile my-profile-account-name s3 ls
 # or
-awslogin dcycle-account-name
+awslogin my-profile-account-name
 ```
 
 When using SSO account selection, this will:
@@ -315,9 +349,9 @@ The sub-profiles are cached, so subsequent runs will check for valid credentials
 Example workflow:
 
 ```bash
-$ awslogin dcycle --select
-🔐 Authenticating with AWS SSO for profile: dcycle
-🌐 Using browser-based SSO authentication with session: dcycle
+$ awslogin my-sso-profile --select
+🔐 Authenticating with AWS SSO for profile: my-sso-profile
+🌐 Using browser-based SSO authentication with session: my-sso-session
 ...
 🔍 Retrieving available SSO accounts...
 
@@ -339,10 +373,10 @@ Select an account (enter number): 1
 Select a role (enter number): 1
 ✅ Selected role: AdministratorAccess
 
-🔄 Creating sub-profile: dcycle-development
-✅ Successfully created sub-profile: dcycle-development
+🔄 Creating sub-profile: my-sso-profile-development
+✅ Successfully created sub-profile: my-sso-profile-development
 
-💡 You can now use the sub-profile with: aws --profile dcycle-development <command>
+💡 You can now use the sub-profile with: aws --profile my-sso-profile-development <command>
 {
     "UserId": "AROAXXXXXXXXXXXXXXXX:username",
     "Account": "123456789012",
@@ -353,13 +387,13 @@ Select a role (enter number): 1
 On subsequent runs, if the credentials are still valid:
 
 ```bash
-$ awslogin dcycle --select
-🔍 Found existing sub-profiles for dcycle:
-   1. dcycle-development - Account: 123456789012, Role: AdministratorAccess
-   2. dcycle-staging - Account: 234567890123, Role: PowerUserAccess
+$ awslogin my-sso-profile --select
+🔍 Found existing sub-profiles for my-sso-profile:
+   1. my-sso-profile-development - Account: 123456789012, Role: AdministratorAccess
+   2. my-sso-profile-staging - Account: 234567890123, Role: PowerUserAccess
 
-✅ Found valid credentials in sub-profile: dcycle-development
-💡 Using existing credentials (use awslogin dcycle --select to refresh)
+✅ Found valid credentials in sub-profile: my-sso-profile-development
+💡 Using existing credentials (use awslogin my-sso-profile --select to refresh)
 
 {
     "UserId": "AROAXXXXXXXXXXXXXXXX:username",
@@ -375,9 +409,9 @@ $ awslogin dcycle --select
 #### Direct SSO Authentication:
 
 ```bash
-$ awslogin mycompany-dev
-🔐 Authenticating with AWS SSO for profile: mycompany-dev
-✅ Successfully authenticated with AWS SSO for profile: mycompany-dev
+$ awslogin my-profile
+🔐 Authenticating with AWS SSO for profile: my-profile
+✅ Successfully authenticated with AWS SSO for profile: my-profile
 {
     "UserId": "AROAXXXXXXXXXXXXXXXX:username",
     "Account": "123456789012",
@@ -388,25 +422,25 @@ $ awslogin mycompany-dev
 #### Browser-based SSO Authentication:
 
 ```bash
-$ awslogin dcycle
-🔐 Authenticating with AWS SSO for profile: dcycle
-🌐 Using browser-based SSO authentication with session: dcycle
-✅ Successfully authenticated with AWS SSO for profile: dcycle
+$ awslogin my-sso-profile
+🔐 Authenticating with AWS SSO for profile: my-sso-profile
+🌐 Using browser-based SSO authentication with session: my-sso-session
+✅ Successfully authenticated with AWS SSO for profile: my-sso-profile
 {
     "UserId": "AROAXXXXXXXXXXXXXXXX:username",
-    "Account": "587922392833",
-    "Arn": "arn:aws:sts::587922392833:assumed-role/AdministratorAccess/username"
+    "Account": "456789012345",
+    "Arn": "arn:aws:sts::456789012345:assumed-role/AdministratorAccess/username"
 }
 ```
 
 ### Example 2: MFA Authentication
 
 ```bash
-$ awslogin production
-🔑 Attempting direct authentication for profile: production
-🔐 Attempting MFA authentication for profile: production
+$ awslogin my-mfa-profile
+🔑 Attempting direct authentication for profile: my-mfa-profile
+🔐 Attempting MFA authentication for profile: my-mfa-profile
 Enter MFA token: 123456
-✅ Successfully authenticated with MFA for profile: production
+✅ Successfully authenticated with MFA for profile: my-mfa-profile
 {
     "UserId": "AROAXXXXXXXXXXXXXXXX:username",
     "Account": "123456789012",
@@ -467,7 +501,7 @@ Enter MFA token: 654321
 
 ## Cross-Account Access with IAM Identity Center
 
-This tool provides an easy way to set up and use cross-account access through AWS IAM Identity Center (formerly AWS SSO). 
+This tool provides an easy way to set up and use cross-account access through AWS IAM Identity Center (formerly AWS SSO).
 
 ### Setting Up Cross-Account Access
 
@@ -528,7 +562,7 @@ This will:
 #### "Profile not found" error
 
 ```
-❌ Profile example-profile not found
+❌ Profile my-profile not found
 ```
 
 **Solution**: Check if the profile exists in your AWS config file. Run `aws configure list-profiles` to see available profiles.
@@ -536,13 +570,13 @@ This will:
 #### SSO authentication fails
 
 ```
-❌ Failed to authenticate with AWS SSO for profile: example-profile
+❌ Failed to authenticate with AWS SSO for profile: my-profile
 ```
 
 **Solution**:
 1. Ensure your SSO configuration is correct
 2. Check if your SSO session is expired
-3. Try manually running `aws sso login --profile example-profile`
+3. Try manually running `aws sso login --profile my-profile`
 
 #### MFA authentication fails
 
@@ -559,14 +593,14 @@ This will:
 #### Direct authentication fails
 
 ```
-❌ Failed to authenticate using profile: example-profile
+❌ Failed to authenticate using profile: my-profile
 ```
 
 **Solution**:
 1. Verify your credentials in the AWS credentials file
 2. Check if your credentials have expired
 3. Verify IAM permissions for the user
-4. Try clearing temporary credentials with `awslogin example-profile --clean`
+4. Try clearing temporary credentials with `awslogin my-profile --clean`
 
 ## Security Considerations
 
@@ -605,4 +639,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Inspired by the AWS CLI and its authentication mechanisms
 - Thanks to all contributors who have helped improve this tool
-
