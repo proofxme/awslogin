@@ -49,6 +49,14 @@ class ManageWizard extends BaseWizard {
         return this.refreshCredentials(profileNames);
       case 'advanced':
         return this.showAdvancedMenu(profileNames);
+      case 'clean':
+        return this.cleanExpiredSessions(profileNames);
+      case 'org':
+        return this.setupOrganizationProfiles();
+      case 'subprofile':
+        return this.createSubProfile(profileNames);
+      case 'export':
+        return this.exportProfiles(profileNames);
       case 'back':
         const MainWizard = require('./main-wizard');
         const mainWizard = new MainWizard();
