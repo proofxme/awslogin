@@ -1,0 +1,45 @@
+name: 'Run Tests'
+description: 'Executes test suite with optional coverage'
+
+inputs:
+  coverage:
+    description: 'Generate coverage report'
+    required: false
+    default: 'false'
+  node-version:
+    description: 'Node.js version for test execution'
+    required: false
+    default: '20'
+
+outputs:
+  test-results:
+    description: 'Test execution results'
+    value: ${{ steps.tests.outputs.results }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run tests
+      id: tests
+      shell: bash
+      run: |
+        echo "🧪 Running test suite with Node.js ${{ inputs.node-version }}..."
+        npm test
+        echo "✅ All tests passed!"
+        echo "results=success" >> $GITHUB_OUTPUT
+
+    - name: Generate coverage report
+      if: inputs.coverage == 'true'
+      shell: bash
+      run: |
+        echo "📊 Generating coverage report..."
+        npm run test:coverage || true
+
+    - name: Upload test results
+      if: always() && inputs.coverage == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-node-${{ inputs.node-version }}
+        path: |
+          test/coverage-report.json
+        retention-days: 30

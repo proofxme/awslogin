@@ -24,33 +24,20 @@ class SetupWizard extends BaseWizard {
 
   async run() {
     this.clear();
-    this.showBanner('⚙️  AWS Profile Setup Wizard', 'Configure a new AWS profile');
+    this.showBanner('➕ New Profile Setup', 'Quick and easy AWS profile configuration');
 
     const config = {};
 
     // Step 1: Profile name
-    this.currentStep = 0;
-    this.showProgress('Profile Name');
     config.profileName = await this.getProfileName();
 
-    // Step 2: Authentication method
-    this.currentStep = 1;
-    this.showProgress('Authentication Method');
+    // Step 2: Authentication method (simplified)
     config.authMethod = await this.selectAuthMethod();
 
     // Step 3: Configuration based on method
-    this.currentStep = 2;
-    this.showProgress('Configuration');
     await this.configureAuthMethod(config);
 
-    // Step 4: Additional settings
-    this.currentStep = 3;
-    this.showProgress('Additional Settings');
-    await this.configureAdditionalSettings(config);
-
-    // Step 5: Save configuration
-    this.currentStep = 4;
-    this.showProgress('Saving Configuration');
+    // Step 4: Save configuration
     const saved = await this.saveConfiguration(config);
 
     if (!saved) {
@@ -104,37 +91,25 @@ class SetupWizard extends BaseWizard {
   }
 
   async selectAuthMethod() {
-    // Check for template preference
-    const useTemplate = await this.confirm('Would you like to use a profile template?', false);
-
-    if (useTemplate) {
-      return this.selectTemplate();
-    }
-
     const choices = [
       {
-        title: '🏢 AWS SSO / Identity Center',
+        title: '🏢 SSO (Recommended)',
         value: 'sso',
-        description: 'Recommended for organizations using AWS SSO'
+        description: 'Single sign-on for organizations'
       },
       {
-        title: '📱 MFA with long-term credentials',
+        title: '📱 MFA',
         value: 'mfa',
-        description: 'Traditional IAM users with MFA device'
+        description: 'Multi-factor authentication'
       },
       {
-        title: '🔑 Direct credentials',
+        title: '🔑 Direct',
         value: 'direct',
-        description: 'For development/testing only (not recommended for production)'
-      },
-      {
-        title: '🔄 Import from existing profile',
-        value: 'import',
-        description: 'Copy settings from another profile'
+        description: 'Simple access keys'
       }
     ];
 
-    return this.select('How do you authenticate to AWS?', choices);
+    return this.select('Authentication type:', choices);
   }
 
   async selectTemplate() {
@@ -320,7 +295,25 @@ class SetupWizard extends BaseWizard {
       }
     }
 
-    this.showInfo('📋 MFA Setup Guide:');
+    // Offer to create new user if no existing profiles copied
+    const setupOption = await this.select('MFA Setup Options:', [
+      {
+        title: '🆕 Create new AWS user with MFA',
+        value: 'create',
+        description: 'Create a new IAM user and set up MFA automatically'
+      },
+      {
+        title: '📝 Enter existing credentials',
+        value: 'manual',
+        description: 'I already have AWS credentials and MFA device'
+      }
+    ]);
+
+    if (setupOption === 'create') {
+      return await this.createUserWithMFA(config);
+    }
+
+    this.showInfo('📋 Manual MFA Setup Guide:');
     this.showInfo('1. You need your AWS Access Key ID and Secret Access Key');
     this.showInfo('2. Your MFA device serial (ARN from IAM console)');
     this.showInfo('3. Optional: 1Password for automatic token retrieval');
@@ -514,6 +507,242 @@ class SetupWizard extends BaseWizard {
     } catch {
       return false;
     }
+  }
+
+  async createUserWithMFA(config) {
+    this.showInfo('🆕 Creating new AWS user with MFA setup');
+
+    // Get admin profile for user creation
+    const existingProfiles = await this.autoDiscovery.getExistingProfiles();
+    if (existingProfiles.length === 0) {
+      this.showError('No existing AWS profiles found. You need an admin profile to create users.');
+      this.showInfo('Please create an admin profile first (SSO or existing credentials)');
+      return;
+    }
+
+    const adminProfile = await this.select('Select admin profile for user creation:',
+      existingProfiles.map(p => ({ title: p, value: p }))
+    );
+
+    // Get username for new user
+    const username = await this.input('New IAM user name:', {
+      default: config.profileName || 'awslogin-user',
+      placeholder: 'awslogin-user',
+      validate: (value) => {
+        if (!value) return 'Username is required';
+        if (!/^[a-zA-Z0-9_+=,.@-]+$/.test(value)) {
+          return 'Username contains invalid characters';
+        }
+        return true;
+      }
+    });
+
+    try {
+      this.showProgress('Creating IAM user...');
+
+      // Import AWS command execution
+      const { execAwsCommand } = require('../core/aws');
+
+      // Create IAM user
+      const createUserResult = execAwsCommand([
+        'iam', 'create-user',
+        '--user-name', username,
+        '--profile', adminProfile
+      ]);
+
+      if (!createUserResult.success) {
+        throw new Error(`Failed to create user: ${createUserResult.stderr}`);
+      }
+
+      this.showSuccess(`Created IAM user: ${username}`);
+
+      // Generate access keys
+      this.showProgress('Generating access keys...');
+      const createKeysResult = execAwsCommand([
+        'iam', 'create-access-key',
+        '--user-name', username,
+        '--profile', adminProfile
+      ]);
+
+      if (!createKeysResult.success) {
+        throw new Error(`Failed to create access keys: ${createKeysResult.stderr}`);
+      }
+
+      const accessKeyData = JSON.parse(createKeysResult.stdout);
+      config.aws_access_key_id = accessKeyData.AccessKey.AccessKeyId;
+      config.aws_secret_access_key = accessKeyData.AccessKey.SecretAccessKey;
+
+      this.showSuccess('Generated access keys');
+
+      // Create virtual MFA device
+      this.showProgress('Creating virtual MFA device...');
+      const createMfaResult = execAwsCommand([
+        'iam', 'create-virtual-mfa-device',
+        '--virtual-mfa-device-name', username,
+        '--bootstrap-method', 'Base32StringSeed',
+        '--outfile', `/tmp/mfa-${username}.txt`,
+        '--profile', adminProfile
+      ]);
+
+      if (!createMfaResult.success) {
+        throw new Error(`Failed to create MFA device: ${createMfaResult.stderr}`);
+      }
+
+      const mfaData = JSON.parse(createMfaResult.stdout);
+      config.mfa_serial = mfaData.VirtualMFADevice.SerialNumber;
+
+      // Read the MFA secret
+      const { readFileSync } = require('fs');
+      const mfaSecret = readFileSync(`/tmp/mfa-${username}.txt`, 'utf8').trim();
+
+      this.showSuccess('Created virtual MFA device');
+
+      // Setup 1Password integration
+      const has1Password = await checkCommand('op --version');
+      if (has1Password) {
+        const use1Password = await this.confirm('Store MFA secret in 1Password?', true);
+        if (use1Password) {
+          await this.setup1PasswordForUser(config, username, mfaSecret);
+        }
+      }
+
+      // Enable MFA device
+      this.showProgress('Enabling MFA device...');
+      if (config.op_item) {
+        // Get two consecutive TOTP codes from 1Password
+        await this.enableMfaWith1Password(config, username, adminProfile);
+      } else {
+        // Manual MFA setup
+        this.showInfo(`MFA Secret for ${username}: ${mfaSecret}`);
+        this.showInfo('Please add this secret to your authenticator app');
+        await this.enableMfaManually(config, username, adminProfile);
+      }
+
+      // Clean up temporary file
+      require('fs').unlinkSync(`/tmp/mfa-${username}.txt`);
+
+      this.showSuccess('✅ User creation and MFA setup completed successfully!');
+      this.showInfo(`User: ${username}`);
+      this.showInfo(`MFA Serial: ${config.mfa_serial}`);
+      if (config.op_item) {
+        this.showInfo(`1Password Item: ${config.op_item}`);
+      }
+
+    } catch (error) {
+      this.showError(`User creation failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async setup1PasswordForUser(config, username, mfaSecret) {
+    try {
+      this.showProgress('Setting up 1Password integration...');
+
+      const { execSync } = require('child_process');
+      const itemName = `AWS ${username}`;
+
+      // Create 1Password item with TOTP
+      const createItemCmd = `op item create --category="Login" --title="${itemName}" 'totp[otp]=otpauth://totp/${username}?secret=${mfaSecret}&issuer=AWS'`;
+      execSync(createItemCmd, { stdio: 'pipe' });
+
+      config.op_item = itemName;
+      this.showSuccess(`Created 1Password item: ${itemName}`);
+
+    } catch (error) {
+      this.showWarning(`Failed to create 1Password item: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async enableMfaWith1Password(config, username, adminProfile) {
+    try {
+      const { execSync } = require('child_process');
+
+      // Get first TOTP code
+      const getCode = () => {
+        const output = execSync(`op item get "${config.op_item}" --otp`, { encoding: 'utf8' });
+        return output.trim();
+      };
+
+      const code1 = getCode();
+      this.showProgress('Waiting for next TOTP window...');
+
+      // Wait for next TOTP window (max 30 seconds)
+      let code2 = code1;
+      let attempts = 0;
+      while (code2 === code1 && attempts < 35) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        code2 = getCode();
+        attempts++;
+      }
+
+      if (code2 === code1) {
+        throw new Error('Could not get consecutive TOTP codes');
+      }
+
+      this.showProgress('Enabling MFA device...');
+
+      // Import AWS command execution
+      const { execAwsCommand } = require('../core/aws');
+
+      const enableResult = execAwsCommand([
+        'iam', 'enable-mfa-device',
+        '--user-name', username,
+        '--serial-number', config.mfa_serial,
+        '--authentication-code1', code1,
+        '--authentication-code2', code2,
+        '--profile', adminProfile
+      ]);
+
+      if (!enableResult.success) {
+        throw new Error(`Failed to enable MFA device: ${enableResult.stderr}`);
+      }
+
+      this.showSuccess('MFA device enabled successfully');
+
+    } catch (error) {
+      this.showError(`Failed to enable MFA device: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async enableMfaManually(config, username, adminProfile) {
+    this.showInfo('Please enter two consecutive MFA codes from your authenticator app:');
+
+    const code1 = await this.input('First MFA code (6 digits):', {
+      validate: (value) => {
+        if (!/^\d{6}$/.test(value)) return 'MFA code must be 6 digits';
+        return true;
+      }
+    });
+
+    const code2 = await this.input('Second MFA code (6 digits):', {
+      validate: (value) => {
+        if (!/^\d{6}$/.test(value)) return 'MFA code must be 6 digits';
+        if (value === code1) return 'Second code must be different from first';
+        return true;
+      }
+    });
+
+    this.showProgress('Enabling MFA device...');
+
+    // Import AWS command execution
+    const { execAwsCommand } = require('../core/aws');
+
+    const enableResult = execAwsCommand([
+      'iam', 'enable-mfa-device',
+      '--user-name', username,
+      '--serial-number', config.mfa_serial,
+      '--authentication-code1', code1,
+      '--authentication-code2', code2,
+      '--profile', adminProfile
+    ]);
+
+    if (!enableResult.success) {
+      throw new Error(`Failed to enable MFA device: ${enableResult.stderr}`);
+    }
+
+    this.showSuccess('MFA device enabled successfully');
   }
 
   async configureAdditionalSettings(config) {

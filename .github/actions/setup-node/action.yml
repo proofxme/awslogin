@@ -1,0 +1,37 @@
+name: 'Setup Node.js Environment'
+description: 'Sets up Node.js with caching and installs dependencies'
+
+inputs:
+  node-version:
+    description: 'Node.js version to use'
+    required: false
+    default: '20'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+        cache-dependency-path: package-lock.json
+
+    - name: Cache node_modules
+      uses: actions/cache@v4
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-${{ inputs.node-version }}-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-${{ inputs.node-version }}-
+          ${{ runner.os }}-node-
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        echo "📦 Installing dependencies with caching..."
+        if [ -d "node_modules" ]; then
+          echo "✅ Using cached node_modules"
+        fi
+        npm ci --prefer-offline --no-audit || npm install --no-audit --prefer-offline
+        echo "✅ Dependencies ready"

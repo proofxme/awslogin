@@ -1,0 +1,53 @@
+name: 'Validate Package'
+description: 'Validates package.json and project structure'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Validate package.json
+      shell: bash
+      run: |
+        echo "📋 Validating package.json..."
+        node -e "
+          const pkg = require('./package.json');
+          const required = ['name', 'version', 'description', 'main', 'bin', 'scripts', 'author', 'license'];
+          const missing = required.filter(field => !pkg[field]);
+          if (missing.length > 0) {
+            console.error('❌ Missing required fields:', missing.join(', '));
+            process.exit(1);
+          }
+          console.log('✅ package.json is valid');
+          console.log('📦 Package:', pkg.name);
+          console.log('🏷️  Version:', pkg.version);
+        "
+
+    - name: Check for zero dependencies
+      shell: bash
+      run: |
+        echo "🔍 Verifying zero-dependencies policy..."
+        node -e "
+          const pkg = require('./package.json');
+          if (pkg.dependencies && Object.keys(pkg.dependencies).length > 0) {
+            console.error('❌ Production dependencies found:', Object.keys(pkg.dependencies));
+            console.error('This package should have zero dependencies!');
+            process.exit(1);
+          }
+          console.log('✅ Zero dependencies verified');
+        "
+
+    - name: Verify CLI entry point
+      shell: bash
+      run: |
+        echo "🔍 Checking CLI entry point..."
+        if [ ! -f "bin/awslogin.js" ]; then
+          echo "❌ CLI entry point not found: bin/awslogin.js"
+          exit 1
+        fi
+
+        # Check shebang
+        if ! head -n 1 bin/awslogin.js | grep -q "^#!/usr/bin/env node"; then
+          echo "❌ Missing or incorrect shebang in bin/awslogin.js"
+          exit 1
+        fi
+
+        echo "✅ CLI entry point verified"

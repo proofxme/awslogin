@@ -1,0 +1,617 @@
+{
+  "timestamp": "2025-09-20T23:34:35.069Z",
+  "summary": {
+    "totalTests": 81,
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "coverage": "7.45%"
+  },
+  "suites": [
+    {
+      "name": "auth-manager",
+      "tests": [
+        {
+          "description": "should detect SSO authentication method",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should detect MFA authentication method",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should authenticate with SSO profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should authenticate with MFA profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should force re-authentication when requested",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should handle 1Password integration for MFA",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should handle missing profile gracefully",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should validate session expiration",
+          "status": "pending",
+          "error": null
+        }
+      ],
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "name": "aws-config",
+      "tests": [
+        {
+          "description": "should get profile configuration",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should set profile configuration",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should use cache for profile config",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should invalidate cache on profile update",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should list all profiles",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should delete profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should export all profiles",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should import profiles",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should refresh cache when TTL expires",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should get default region",
+          "status": "pending",
+          "error": null
+        }
+      ],
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "name": "identity-center",
+      "tests": [
+        {
+          "description": "should setup cross-account access",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should list available AWS accounts",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should fail without SSO session",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should create sub-profile with selected role",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should get sub-profiles for parent",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should refresh sub-profile credentials",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should fail to refresh without parent session",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should validate SSO profile setup",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should cleanup expired sessions",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should list available roles for account",
+          "status": "pending",
+          "error": null
+        }
+      ],
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "name": "mfa",
+      "tests": [
+        {
+          "description": "should authenticate with MFA token",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should use 1Password for MFA token",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should use provided MFA token",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should create MFA device",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should enable MFA device with valid codes",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should reject invalid MFA codes",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should set up 1Password integration",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should get consecutive TOTP codes from 1Password",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should validate MFA session expiration",
+          "status": "pending",
+          "error": null
+        }
+      ],
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "name": "onepassword",
+      "tests": [
+        {
+          "description": "should detect 1Password CLI availability",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should create 1Password item with fields",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should add TOTP field to existing item",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should get TOTP code from 1Password",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should get consecutive TOTP codes",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should store AWS credentials in 1Password",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should retrieve stored credentials from 1Password",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should handle interactive setup",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should handle no 1Password account",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should create vault if needed",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should handle 1Password CLI errors gracefully",
+          "status": "pending",
+          "error": null
+        }
+      ],
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "name": "performance",
+      "tests": [
+        {
+          "description": "should measure operation time",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should cache results and respect TTL",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should optimize profile listing with cache",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should track performance metrics",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should handle bulk operations efficiently",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should handle parallel operations",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should demonstrate 100x performance improvement",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should clear cache and metrics",
+          "status": "pending",
+          "error": null
+        }
+      ],
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "name": "profile-config",
+      "tests": [
+        {
+          "description": "should create new MFA profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should create new SSO profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should update existing profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should delete profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should clone profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should export profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should import profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should validate SSO profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should validate MFA profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should migrate legacy profiles",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should handle profile not found errors",
+          "status": "pending",
+          "error": null
+        }
+      ],
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "name": "setup-wizard",
+      "tests": [
+        {
+          "description": "should create SSO profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should create MFA profile with manual setup",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should create MFA profile with user creation",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should create direct credentials profile",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should save profile configuration",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should apply profile templates",
+          "status": "pending",
+          "error": null
+        }
+      ],
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "name": "sso",
+      "tests": [
+        {
+          "description": "should perform SSO login successfully",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should use cached SSO session when valid",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should force SSO re-login when requested",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should list AWS accounts after SSO login",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should fail to list accounts with expired session",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should create sub-profile for specific account",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should refresh SSO token",
+          "status": "pending",
+          "error": null
+        },
+        {
+          "description": "should validate SSO session correctly",
+          "status": "pending",
+          "error": null
+        }
+      ],
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "coverage": {
+    "src/cli/index.js": {
+      "lines": 19,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/config/templates.js": {
+      "lines": 96,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/constants/output-formats.js": {
+      "lines": 23,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/constants/regions.js": {
+      "lines": 54,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/core/aws.js": {
+      "lines": 24,
+      "covered": 24,
+      "percentage": 100
+    },
+    "src/core/formatters.js": {
+      "lines": 16,
+      "covered": 16,
+      "percentage": 100
+    },
+    "src/core/prompt.js": {
+      "lines": 118,
+      "covered": 118,
+      "percentage": 100
+    },
+    "src/core/session.js": {
+      "lines": 144,
+      "covered": 144,
+      "percentage": 100
+    },
+    "src/help.js": {
+      "lines": 51,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/index.js": {
+      "lines": 63,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/auth-manager.js": {
+      "lines": 272,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/auto-discovery.js": {
+      "lines": 190,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/aws-config.js": {
+      "lines": 130,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/identity-center.js": {
+      "lines": 125,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/mfa.js": {
+      "lines": 55,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/onepassword.js": {
+      "lines": 189,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/profile-config.js": {
+      "lines": 364,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/profile-service.js": {
+      "lines": 150,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/smart-auth.js": {
+      "lines": 230,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/services/sso.js": {
+      "lines": 199,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/wizards/auth-wizard.js": {
+      "lines": 68,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/wizards/base-wizard.js": {
+      "lines": 68,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/wizards/main-wizard.js": {
+      "lines": 219,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/wizards/manage-wizard.js": {
+      "lines": 510,
+      "covered": 0,
+      "percentage": 0
+    },
+    "src/wizards/setup-wizard.js": {
+      "lines": 675,
+      "covered": 0,
+      "percentage": 0
+    }
+  },
+  "duration": 11
+}
